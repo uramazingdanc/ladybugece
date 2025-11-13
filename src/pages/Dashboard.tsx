@@ -4,7 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import FarmerDashboard from '@/components/dashboard/FarmerDashboard';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
 import { Button } from '@/components/ui/button';
-import { LogOut, Bug } from 'lucide-react';
+import { Bug, User } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Dashboard() {
   const { user, userRole, loading, signOut } = useAuth();
@@ -15,6 +23,11 @@ export default function Dashboard() {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
 
   if (loading) {
     return (
@@ -46,10 +59,25 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <Button onClick={signOut} variant="outline" size="sm" className="gap-2">
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {userRole === 'farmer' && (
+                <DropdownMenuItem onClick={() => navigate('/manage-farms')}>
+                  Manage Farms
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={handleSignOut}>
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

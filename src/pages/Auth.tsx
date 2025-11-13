@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Bug, Sprout } from 'lucide-react';
 
 export default function Auth() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
   // Sign In state
@@ -22,11 +24,18 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'farmer' | 'government'>('farmer');
 
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       await signIn(signInEmail, signInPassword);
+      navigate('/dashboard');
     } catch (error) {
       // Error handled by useAuth
     } finally {
@@ -39,6 +48,7 @@ export default function Auth() {
     setIsLoading(true);
     try {
       await signUp(signUpEmail, signUpPassword, fullName, role);
+      navigate('/dashboard');
     } catch (error) {
       // Error handled by useAuth
     } finally {

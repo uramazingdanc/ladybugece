@@ -1,7 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -21,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'farmer' | 'government' | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -80,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       
       toast.success('Welcome back!');
-      navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in');
       throw error;
@@ -106,7 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       
       toast.success('Account created successfully!');
-      navigate('/dashboard');
     } catch (error: any) {
       if (error.message?.includes('already registered')) {
         toast.error('This email is already registered. Please sign in instead.');
@@ -122,7 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setUserRole(null);
       toast.success('Signed out successfully');
-      navigate('/auth');
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign out');
     }
