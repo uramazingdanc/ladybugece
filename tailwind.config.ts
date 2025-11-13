@@ -47,6 +47,17 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        alert: {
+          green: "hsl(var(--alert-green))",
+          "green-light": "hsl(var(--alert-green-light))",
+          yellow: "hsl(var(--alert-yellow))",
+          "yellow-light": "hsl(var(--alert-yellow-light))",
+          red: "hsl(var(--alert-red))",
+          "red-light": "hsl(var(--alert-red-light))",
+        },
+        earth: "hsl(var(--earth))",
+        soil: "hsl(var(--soil))",
+        crop: "hsl(var(--crop))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
