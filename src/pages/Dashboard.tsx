@@ -3,6 +3,7 @@ import { Bug, Map, BarChart3 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
@@ -42,7 +43,9 @@ export default function Dashboard() {
             <div className="bg-card rounded-lg border border-border p-4">
               <h2 className="text-2xl font-bold mb-4">Farm Status Map</h2>
               <div className="h-[600px] rounded-lg overflow-hidden border border-border">
-                <FarmMap />
+                <ErrorBoundary>
+                  <FarmMap />
+                </ErrorBoundary>
               </div>
             </div>
           </TabsContent>
