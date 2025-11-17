@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 
 // Fix for default marker icons in React-Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -108,7 +108,7 @@ export default function FarmMap() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842]); // Manila default
+  const [mapCenter, setMapCenter] = useState<[number, number]>([12.8797, 121.7740]); // Central Philippines
 
   useEffect(() => {
     fetchFarms();
@@ -234,36 +234,47 @@ export default function FarmMap() {
   }
 
   return (
-    <div className="h-full w-full relative">
-      <MapContainer
-        key={`${mapCenter[0]}-${mapCenter[1]}`}
-        center={mapCenter}
-        zoom={13}
-        scrollWheelZoom={true}
-        className="h-full w-full rounded-lg"
-        style={{ background: 'hsl(var(--muted))' }}
-      >
-        <MapContent farms={farms} getMarkerIcon={getMarkerIcon} getAlertColor={getAlertColor} />
-      </MapContainer>
+    <div className="space-y-4">
+      <Card className="border-0 shadow-md">
+        <CardHeader className="pb-3">
+          <div>
+            <h3 className="text-xl font-semibold">Interactive Farm Map</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Real-time overview of pest alert levels across all monitored farms
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <div className="overflow-hidden">
+            <MapContainer
+              key={`${mapCenter[0]}-${mapCenter[1]}`}
+              center={mapCenter}
+              zoom={7}
+              scrollWheelZoom={true}
+              style={{ height: '600px', width: '100%' }}
+              className="z-0"
+            >
+              <MapContent farms={farms} getMarkerIcon={getMarkerIcon} getAlertColor={getAlertColor} />
+            </MapContainer>
+          </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-card border border-border rounded-lg shadow-lg p-4 z-[1000]">
-        <h4 className="font-semibold mb-2 text-sm">Legend</h4>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}></div>
-            <span>Safe (Green)</span>
+          {/* Legend */}
+          <div className="px-6 py-4 border-t bg-card flex justify-start gap-8 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-alert-green"></div>
+              <span className="text-muted-foreground">Low Risk</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-alert-yellow"></div>
+              <span className="text-muted-foreground">Medium Risk</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-alert-red"></div>
+              <span className="text-muted-foreground">High Risk</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: 'hsl(48, 96%, 53%)' }}></div>
-            <span>Warning (Yellow)</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: 'hsl(0, 84%, 60%)' }}></div>
-            <span>At Risk (Red)</span>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
