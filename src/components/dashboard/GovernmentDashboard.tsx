@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, TrendingUp } from 'lucide-react';
+import { FileText, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Stats {
@@ -90,127 +90,116 @@ export default function GovernmentDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground mb-2">Regional Overview</h2>
-        <p className="text-muted-foreground text-lg">Monitor onion armyworm activity across all farms</p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Farms</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.totalFarms}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-alert-red bg-alert-red-light/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Red Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-alert-red">{stats.redAlerts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Critical action needed</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-alert-yellow bg-alert-yellow-light/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Yellow Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-alert-yellow">{stats.yellowAlerts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Monitor closely</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-alert-green bg-alert-green-light/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Green Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-alert-green">{stats.greenAlerts}</div>
-            <p className="text-xs text-muted-foreground mt-1">No action needed</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Actions */}
-      <div className="grid gap-4 md:grid-cols-1">
-        <Card className="bg-gradient-to-br from-accent/10 to-earth/10 border-accent/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Government Analytics Dashboard</h2>
+          <p className="text-muted-foreground text-sm">Overview of pest monitoring across all farms</p>
+        </div>
+        <Button 
+          onClick={generateReport}
+          disabled={generatingReport}
+          className="bg-primary hover:bg-primary/90"
+        >
+          {generatingReport ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <FileText className="mr-2 h-4 w-4" />
               Generate Report
-            </CardTitle>
-            <CardDescription>Download comprehensive regional analysis</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              onClick={generateReport} 
-              size="lg" 
-              variant="outline" 
-              className="w-full gap-2"
-              disabled={generatingReport}
-            >
-              <Download className="w-5 h-5" />
-              {generatingReport ? 'Generating...' : 'Download Report'}
-            </Button>
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-md">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Farms Monitored</p>
+                <div className="text-3xl font-bold mt-2">{stats.totalFarms.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Active monitoring sites</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md bg-gradient-to-br from-alert-green/10 to-alert-green/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-alert-green"></div>
+                  Green Alert (Low Risk)
+                </p>
+                <div className="text-3xl font-bold text-alert-green mt-2">{stats.greenAlerts.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Safe zones</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md bg-gradient-to-br from-alert-yellow/10 to-alert-yellow/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-alert-yellow"></div>
+                  Yellow Alert (Medium Risk)
+                </p>
+                <div className="text-3xl font-bold text-alert-yellow mt-2">{stats.yellowAlerts.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Monitor closely</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md bg-gradient-to-br from-alert-red/10 to-alert-red/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-alert-red"></div>
+                  Red Alert (High Risk)
+                </p>
+                <div className="text-3xl font-bold text-alert-red mt-2">{stats.redAlerts.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Immediate action needed</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Alert Distribution Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Alert Distribution</CardTitle>
-          <CardDescription>Current status across all monitored farms</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Critical (Red)</span>
-                <span className="text-sm font-medium">{stats.redAlerts} farms</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-alert-red rounded-full transition-all"
-                  style={{ width: `${(stats.redAlerts / stats.totalFarms) * 100}%` }}
-                />
-              </div>
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alert Level Distribution Chart */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">Farms by Alert Level</CardTitle>
+            <CardDescription>Current alert distribution</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] flex items-center justify-center">
+              <p className="text-muted-foreground text-sm">Chart visualization coming soon</p>
             </div>
+          </CardContent>
+        </Card>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Warning (Yellow)</span>
-                <span className="text-sm font-medium">{stats.yellowAlerts} farms</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-alert-yellow rounded-full transition-all"
-                  style={{ width: `${(stats.yellowAlerts / stats.totalFarms) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Safe (Green)</span>
-                <span className="text-sm font-medium">{stats.greenAlerts} farms</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-alert-green rounded-full transition-all"
-                  style={{ width: `${(stats.greenAlerts / stats.totalFarms) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Pest Incidents Over Time */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">Pest Incidents Over Time</CardTitle>
+            <CardDescription>Historical trend analysis</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center h-[300px]">
+            <p className="text-muted-foreground text-sm">Time series data visualization coming soon</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
