@@ -1,48 +1,11 @@
-import { useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import FarmerDashboard from '@/components/dashboard/FarmerDashboard';
+import { useState } from 'react';
+import { Bug, Map, BarChart3 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
-import { Button } from '@/components/ui/button';
-import { Bug, User } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export default function Dashboard() {
-  const { user, userRole, loading, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Bug className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
-          <p className="text-xl text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
+  const [activeTab, setActiveTab] = useState('map');
 
   return (
     <div className="min-h-screen bg-background">
@@ -55,34 +18,39 @@ export default function Dashboard() {
             <div>
               <h1 className="text-xl font-bold text-foreground">LADYBUG</h1>
               <p className="text-xs text-muted-foreground">
-                {userRole === 'farmer' ? 'Farmer Dashboard' : 'Government Dashboard'}
+                Pest Monitoring Dashboard
               </p>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <User className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {userRole === 'farmer' && (
-                <DropdownMenuItem onClick={() => navigate('/manage-farms')}>
-                  Manage Farms
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleSignOut}>
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {userRole === 'farmer' ? <FarmerDashboard /> : <GovernmentDashboard />}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+            <TabsTrigger value="map" className="flex items-center gap-2">
+              <Map className="w-4 h-4" />
+              GIS Map
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="map" className="space-y-4">
+            <div className="bg-card rounded-lg border border-border p-4">
+              <h2 className="text-2xl font-bold mb-4">Farm Status Map</h2>
+              <div className="h-[600px] rounded-lg overflow-hidden border border-border">
+                <FarmMap />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-4">
+            <GovernmentDashboard />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

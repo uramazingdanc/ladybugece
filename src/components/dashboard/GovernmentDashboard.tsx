@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, FileText, Download, TrendingUp } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { FileText, Download, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Stats {
@@ -15,7 +14,6 @@ interface Stats {
 }
 
 export default function GovernmentDashboard() {
-  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({
     totalFarms: 0,
     redAlerts: 0,
@@ -140,23 +138,7 @@ export default function GovernmentDashboard() {
       </div>
 
       {/* Actions */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-gradient-to-br from-primary/10 to-crop/10 border-primary/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              GIS Dashboard
-            </CardTitle>
-            <CardDescription>View all farms on an interactive map</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate('/government-map')} size="lg" className="w-full gap-2">
-              <MapPin className="w-5 h-5" />
-              Open Map Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 md:grid-cols-1">
         <Card className="bg-gradient-to-br from-accent/10 to-earth/10 border-accent/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
