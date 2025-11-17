@@ -3,6 +3,9 @@ import { MapContainer, TileLayer, Marker, Popup, LayerGroup } from 'react-leafle
 import { supabase } from '@/integrations/supabase/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 // Fix for default marker icons in React-Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -102,6 +105,7 @@ function MapContent({ farms, getMarkerIcon, getAlertColor }: {
 export default function FarmMap() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842]); // Manila default
 
   useEffect(() => {
@@ -130,6 +134,9 @@ export default function FarmMap() {
 
   const fetchFarms = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const { data: farmsData, error: farmsError } = await supabase
         .from('farms')
         .select('*');
@@ -159,6 +166,7 @@ export default function FarmMap() {
       }
     } catch (error) {
       console.error('Error fetching farms:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load farm data');
     } finally {
       setLoading(false);
     }
@@ -189,7 +197,36 @@ export default function FarmMap() {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground">Loading map...</p>
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center bg-muted/30 p-4">
+        <Card className="p-8 text-center max-w-md">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-foreground">
+                Failed to Load Map
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {error}
+              </p>
+            </div>
+            <Button onClick={fetchFarms} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }
