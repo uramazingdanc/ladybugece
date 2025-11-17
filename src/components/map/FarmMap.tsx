@@ -1,45 +1,20 @@
-import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, LayerGroup } from 'react-leaflet';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-
-// Fix for default marker icons in React-Leaflet
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Custom colored markers for alert levels
-const createColoredIcon = (color: string) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="
-      background-color: ${color};
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-  });
-};
-
-const greenIcon = createColoredIcon('hsl(142, 76%, 36%)');
-const yellowIcon = createColoredIcon('hsl(48, 96%, 53%)');
-const redIcon = createColoredIcon('hsl(0, 84%, 60%)');
+import 'ol/ol.css';
+import Map from 'ol/Map';
+import View from 'ol/View';
+import TileLayer from 'ol/layer/Tile';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import OSM from 'ol/source/OSM';
+import Feature from 'ol/Feature';
+import Point from 'ol/geom/Point';
+import { fromLonLat } from 'ol/proj';
+import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
+import Overlay from 'ol/Overlay';
 
 interface Farm {
   id: string;
@@ -51,64 +26,42 @@ interface Farm {
   last_updated?: string;
 }
 
+// Helper function to get marker color based on alert level
+const getMarkerColor = (alertLevel?: string): string => {
+  switch (alertLevel) {
+    case 'Red':
+      return 'hsl(0, 72%, 51%)';
+    case 'Yellow':
+      return 'hsl(45, 100%, 51%)';
+    case 'Green':
+      return 'hsl(142, 76%, 36%)';
+    default:
+      return 'hsl(142, 76%, 36%)';
+  }
+};
 
-function MapContent({ farms, getMarkerIcon, getAlertColor }: { 
-  farms: Farm[], 
-  getMarkerIcon: (alertLevel?: string) => L.DivIcon,
-  getAlertColor: (alertLevel?: string) => string 
-}) {
-  return (
-    <>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        subdomains="abcd"
-        maxZoom={20}
-      />
-      {farms.map((farm) => (
-        <Marker
-          key={farm.id}
-          position={[farm.latitude, farm.longitude]}
-          icon={getMarkerIcon(farm.alert_level)}
-        >
-          <Popup>
-            <div className="p-2">
-              <h3 className="font-bold text-lg mb-2">{farm.farm_name}</h3>
-              <div className="space-y-1 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">Status:</span>
-                  <span
-                    className="px-2 py-1 rounded text-white font-medium"
-                    style={{ backgroundColor: getAlertColor(farm.alert_level) }}
-                  >
-                    {farm.alert_level}
-                  </span>
-                </div>
-                {farm.last_moth_count !== undefined && (
-                  <div>
-                    <span className="font-semibold">Moth Count:</span> {farm.last_moth_count}
-                  </div>
-                )}
-                {farm.last_updated && (
-                  <div>
-                    <span className="font-semibold">Last Updated:</span>{' '}
-                    {new Date(farm.last_updated).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </>
-  );
-}
+// Helper function to get alert color for popup
+const getAlertColor = (alertLevel?: string): string => {
+  switch (alertLevel) {
+    case 'Red':
+      return 'hsl(0, 72%, 51%)';
+    case 'Yellow':
+      return 'hsl(45, 100%, 51%)';
+    case 'Green':
+      return 'hsl(142, 76%, 36%)';
+    default:
+      return 'hsl(142, 76%, 36%)';
+  }
+};
 
 export default function FarmMap() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([12.8797, 121.7740]); // Central Philippines
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<Map | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<Overlay | null>(null);
 
   useEffect(() => {
     fetchFarms();
@@ -134,9 +87,147 @@ export default function FarmMap() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mapRef.current || farms.length === 0) return;
+
+    // Initialize map if not already initialized
+    if (!mapInstanceRef.current) {
+      // Create popup overlay
+      if (popupRef.current) {
+        overlayRef.current = new Overlay({
+          element: popupRef.current,
+          autoPan: {
+            animation: {
+              duration: 250,
+            },
+          },
+        });
+      }
+
+      // Create map
+      const map = new Map({
+        target: mapRef.current,
+        layers: [
+          new TileLayer({
+            source: new OSM(),
+          }),
+        ],
+        view: new View({
+          center: fromLonLat([121.7740, 12.8797]), // Central Philippines
+          zoom: 7,
+        }),
+        overlays: overlayRef.current ? [overlayRef.current] : [],
+      });
+
+      mapInstanceRef.current = map;
+
+      // Add click handler for popups
+      map.on('click', (evt) => {
+        const feature = map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
+        
+        if (feature && overlayRef.current && popupRef.current) {
+          const coordinates = (feature.getGeometry() as Point).getCoordinates();
+          const properties = feature.getProperties();
+          
+          // Update popup content
+          popupRef.current.innerHTML = `
+            <div class="p-4 bg-card border border-border rounded-lg shadow-lg min-w-[200px]">
+              <button class="absolute top-2 right-2 text-muted-foreground hover:text-foreground" onclick="this.parentElement.style.display='none'">
+                ✕
+              </button>
+              <h3 class="font-bold text-lg mb-2">${properties.farm_name}</h3>
+              <div class="space-y-1 text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold">Status:</span>
+                  <span class="px-2 py-1 rounded text-white font-medium" style="background-color: ${getAlertColor(properties.alert_level)}">
+                    ${properties.alert_level || 'Unknown'}
+                  </span>
+                </div>
+                ${properties.last_moth_count !== undefined ? `
+                  <div>
+                    <span class="font-semibold">Moth Count:</span> ${properties.last_moth_count}
+                  </div>
+                ` : ''}
+                ${properties.last_updated ? `
+                  <div>
+                    <span class="font-semibold">Last Updated:</span> ${new Date(properties.last_updated).toLocaleString()}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+          
+          overlayRef.current.setPosition(coordinates);
+          popupRef.current.style.display = 'block';
+        } else if (overlayRef.current && popupRef.current) {
+          popupRef.current.style.display = 'none';
+        }
+      });
+
+      // Change cursor on hover
+      map.on('pointermove', (evt) => {
+        const hit = map.hasFeatureAtPixel(evt.pixel);
+        map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+      });
+    }
+
+    // Update markers
+    const vectorSource = new VectorSource();
+    
+    farms.forEach((farm) => {
+      const feature = new Feature({
+        geometry: new Point(fromLonLat([farm.longitude, farm.latitude])),
+        farm_name: farm.farm_name,
+        alert_level: farm.alert_level,
+        last_moth_count: farm.last_moth_count,
+        last_updated: farm.last_updated,
+      });
+
+      const markerColor = getMarkerColor(farm.alert_level);
+      
+      feature.setStyle(
+        new Style({
+          image: new CircleStyle({
+            radius: 10,
+            fill: new Fill({
+              color: markerColor,
+            }),
+            stroke: new Stroke({
+              color: '#ffffff',
+              width: 3,
+            }),
+          }),
+        })
+      );
+
+      vectorSource.addFeature(feature);
+    });
+
+    // Remove old vector layer if exists
+    const layers = mapInstanceRef.current.getLayers().getArray();
+    const oldVectorLayer = layers.find((layer) => layer instanceof VectorLayer);
+    if (oldVectorLayer) {
+      mapInstanceRef.current.removeLayer(oldVectorLayer);
+    }
+
+    // Add new vector layer
+    const vectorLayer = new VectorLayer({
+      source: vectorSource,
+    });
+    
+    mapInstanceRef.current.addLayer(vectorLayer);
+
+    return () => {
+      // Cleanup on unmount
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.setTarget(undefined);
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [farms]);
+
   const fetchFarms = async () => {
     try {
-      setLoading(true);
       setError(null);
       
       const { data: farmsData, error: farmsError } = await supabase
@@ -145,63 +236,37 @@ export default function FarmMap() {
 
       if (farmsError) throw farmsError;
 
-      // Fetch alert data for each farm
-      const { data: alertsData } = await supabase
+      const { data: alertsData, error: alertsError } = await supabase
         .from('ipm_alerts')
         .select('*');
 
-      const farmsWithAlerts = (farmsData || []).map(farm => {
+      if (alertsError) throw alertsError;
+
+      const farmsWithAlerts = farmsData?.map(farm => {
         const alert = alertsData?.find(a => a.farm_id === farm.id);
         return {
           ...farm,
-          alert_level: alert?.alert_level || 'Green',
+          alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
           last_moth_count: alert?.last_moth_count,
           last_updated: alert?.last_updated,
         };
-      });
+      }) || [];
 
       setFarms(farmsWithAlerts);
-      
-      // Center map on first farm if available
-      if (farmsWithAlerts.length > 0) {
-        setMapCenter([farmsWithAlerts[0].latitude, farmsWithAlerts[0].longitude]);
-      }
-    } catch (error) {
-      console.error('Error fetching farms:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load farm data');
-    } finally {
       setLoading(false);
-    }
-  };
-
-  const getMarkerIcon = (alertLevel?: string) => {
-    switch (alertLevel) {
-      case 'Red':
-        return redIcon;
-      case 'Yellow':
-        return yellowIcon;
-      default:
-        return greenIcon;
-    }
-  };
-
-  const getAlertColor = (alertLevel?: string) => {
-    switch (alertLevel) {
-      case 'Red':
-        return 'hsl(0, 84%, 60%)';
-      case 'Yellow':
-        return 'hsl(48, 96%, 53%)';
-      default:
-        return 'hsl(142, 76%, 36%)';
+    } catch (err: any) {
+      console.error('Error fetching farms:', err);
+      setError(err.message || 'Failed to load farm data');
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-muted/30">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-muted-foreground">Loading map...</p>
+      <div className="flex items-center justify-center h-[600px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading map data...</p>
         </div>
       </div>
     );
@@ -209,14 +274,12 @@ export default function FarmMap() {
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-muted/30 p-4">
-        <Card className="p-8 text-center max-w-md">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-destructive" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-foreground">
+      <div className="flex items-center justify-center h-[600px]">
+        <Card className="max-w-md">
+          <div className="p-6 text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+            <div>
+              <h3 className="font-semibold text-lg mb-2">
                 Failed to Load Map
               </h3>
               <p className="text-sm text-muted-foreground">
@@ -245,17 +308,17 @@ export default function FarmMap() {
           </div>
         </CardHeader>
         <CardContent className="px-0 pb-0">
-          <div className="overflow-hidden">
-            <MapContainer
-              key={`${mapCenter[0]}-${mapCenter[1]}`}
-              center={mapCenter}
-              zoom={7}
-              scrollWheelZoom={true}
+          <div className="overflow-hidden relative">
+            <div 
+              ref={mapRef} 
               style={{ height: '600px', width: '100%' }}
               className="z-0"
-            >
-              <MapContent farms={farms} getMarkerIcon={getMarkerIcon} getAlertColor={getAlertColor} />
-            </MapContainer>
+            />
+            <div 
+              ref={popupRef}
+              style={{ display: 'none' }}
+              className="absolute z-10"
+            />
           </div>
 
           {/* Legend */}
