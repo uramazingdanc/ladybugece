@@ -48,13 +48,6 @@ interface Farm {
   last_updated?: string;
 }
 
-function MapRecenter({ center }: { center: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
-  return null;
-}
 
 function MapContent({ farms, getMarkerIcon, getAlertColor }: { 
   farms: Farm[], 
@@ -204,13 +197,13 @@ export default function FarmMap() {
   return (
     <div className="h-full w-full relative">
       <MapContainer
+        key={`${mapCenter[0]}-${mapCenter[1]}`}
         center={mapCenter}
         zoom={13}
         scrollWheelZoom={true}
         className="h-full w-full rounded-lg"
         style={{ background: 'hsl(var(--muted))' }}
       >
-        <MapRecenter center={mapCenter} />
         <MapContent farms={farms} getMarkerIcon={getMarkerIcon} getAlertColor={getAlertColor} />
       </MapContainer>
 
