@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Bug, Map, BarChart3 } from 'lucide-react';
+import { Bug, Map, BarChart3, Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
+import FarmManagement from '@/components/farm/FarmManagement';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Dashboard() {
@@ -28,7 +29,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3">
             <TabsTrigger value="map" className="flex items-center gap-2">
               <Map className="w-4 h-4" />
               GIS Map
@@ -36,6 +37,10 @@ export default function Dashboard() {
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               Analytics
+            </TabsTrigger>
+            <TabsTrigger value="manage" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Manage Farms
             </TabsTrigger>
           </TabsList>
 
@@ -52,6 +57,12 @@ export default function Dashboard() {
 
           <TabsContent value="analytics" className="space-y-4">
             <GovernmentDashboard />
+          </TabsContent>
+
+          <TabsContent value="manage" className="space-y-4">
+            <div className="bg-card rounded-lg border border-border p-6">
+              <FarmManagement />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
