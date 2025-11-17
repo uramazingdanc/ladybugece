@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, LayerGroup } from 'react-leaflet';
 import { supabase } from '@/integrations/supabase/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -55,7 +55,7 @@ function MapContent({ farms, getMarkerIcon, getAlertColor }: {
   getAlertColor: (alertLevel?: string) => string 
 }) {
   return (
-    <>
+    <LayerGroup>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -95,7 +95,7 @@ function MapContent({ farms, getMarkerIcon, getAlertColor }: {
           </Popup>
         </Marker>
       ))}
-    </>
+    </LayerGroup>
   );
 }
 
