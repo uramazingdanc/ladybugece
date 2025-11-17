@@ -171,7 +171,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_government: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
       alert_level: "Green" | "Yellow" | "Red"
