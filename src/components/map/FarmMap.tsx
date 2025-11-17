@@ -56,6 +56,56 @@ function MapRecenter({ center }: { center: [number, number] }) {
   return null;
 }
 
+function MapContent({ farms, getMarkerIcon, getAlertColor }: { 
+  farms: Farm[], 
+  getMarkerIcon: (alertLevel?: string) => L.DivIcon,
+  getAlertColor: (alertLevel?: string) => string 
+}) {
+  return (
+    <>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {farms.map((farm) => (
+        <Marker
+          key={farm.id}
+          position={[farm.latitude, farm.longitude]}
+          icon={getMarkerIcon(farm.alert_level)}
+        >
+          <Popup>
+            <div className="p-2">
+              <h3 className="font-bold text-lg mb-2">{farm.farm_name}</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Status:</span>
+                  <span
+                    className="px-2 py-1 rounded text-white font-medium"
+                    style={{ backgroundColor: getAlertColor(farm.alert_level) }}
+                  >
+                    {farm.alert_level}
+                  </span>
+                </div>
+                {farm.last_moth_count !== undefined && (
+                  <div>
+                    <span className="font-semibold">Moth Count:</span> {farm.last_moth_count}
+                  </div>
+                )}
+                {farm.last_updated && (
+                  <div>
+                    <span className="font-semibold">Last Updated:</span>{' '}
+                    {new Date(farm.last_updated).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  );
+}
+
 export default function FarmMap() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,45 +211,7 @@ export default function FarmMap() {
         style={{ background: 'hsl(var(--muted))' }}
       >
         <MapRecenter center={mapCenter} />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {farms.map((farm) => (
-          <Marker
-            key={farm.id}
-            position={[farm.latitude, farm.longitude]}
-            icon={getMarkerIcon(farm.alert_level)}
-          >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-bold text-lg mb-2">{farm.farm_name}</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">Status:</span>
-                    <span
-                      className="px-2 py-1 rounded text-white font-medium"
-                      style={{ backgroundColor: getAlertColor(farm.alert_level) }}
-                    >
-                      {farm.alert_level}
-                    </span>
-                  </div>
-                  {farm.last_moth_count !== undefined && (
-                    <div>
-                      <span className="font-semibold">Moth Count:</span> {farm.last_moth_count}
-                    </div>
-                  )}
-                  {farm.last_updated && (
-                    <div>
-                      <span className="font-semibold">Last Updated:</span>{' '}
-                      {new Date(farm.last_updated).toLocaleString()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <MapContent farms={farms} getMarkerIcon={getMarkerIcon} getAlertColor={getAlertColor} />
       </MapContainer>
 
       {/* Legend */}
