@@ -94,6 +94,28 @@ Deno.serve(async (req) => {
         console.error('Error updating alert:', alertError);
       } else {
         console.log('Alert updated with edge-computed status');
+        
+        // Trigger email alert for RED status
+        if (alert_level === 'Red') {
+          console.log('RED alert detected, triggering email notification');
+          try {
+            const { data: emailResult, error: emailError } = await supabase.functions.invoke('send-alert-email', {
+              body: {
+                farm_id: device.farm_id,
+                alert_level: alert_level
+              }
+            });
+            
+            if (emailError) {
+              console.error('Error sending alert email:', emailError);
+            } else {
+              console.log('Alert email triggered successfully:', emailResult);
+            }
+          } catch (emailError) {
+            console.error('Failed to trigger email alert:', emailError);
+            // Don't fail the main request if email fails
+          }
+        }
       }
     } else {
       // Fallback to server-side calculation if no alert_level provided
