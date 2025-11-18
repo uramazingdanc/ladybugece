@@ -37,7 +37,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 gap-4 bg-transparent p-0">
+          <TabsList className="grid w-full grid-cols-3 gap-4 bg-transparent p-0">
             <TabsTrigger 
               value="map" 
               className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
@@ -59,13 +59,6 @@ export default function Dashboard() {
               <Activity className="h-4 w-4" />
               Analytics
             </TabsTrigger>
-            <TabsTrigger 
-              value="manage" 
-              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
-            >
-              <Settings className="h-4 w-4" />
-              Management
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="map">
@@ -82,9 +75,6 @@ export default function Dashboard() {
             <GovernmentDashboard />
           </TabsContent>
 
-          <TabsContent value="manage">
-            <FarmManagement />
-          </TabsContent>
         </Tabs>
       </main>
     </div>
