@@ -18,10 +18,10 @@ Deno.serve(async (req) => {
 
     console.log('Received data ingestion request');
 
-    // Parse the incoming data from hardware
-    const { device_id, moth_count, temperature } = await req.json();
+    // Parse the incoming data from hardware (edge-computed)
+    const { device_id, moth_count, temperature, degree_days, alert_level } = await req.json();
 
-    console.log('Data received:', { device_id, moth_count, temperature });
+    console.log('Data received:', { device_id, moth_count, temperature, degree_days, alert_level });
 
     // Validate required fields
     if (!device_id || moth_count === undefined || temperature === undefined) {
@@ -49,14 +49,20 @@ Deno.serve(async (req) => {
 
     console.log('Device validated:', device);
 
-    // Insert pest reading
+    // Insert pest reading with optional degree_days
+    const readingData: any = {
+      device_id,
+      moth_count,
+      temperature
+    };
+    
+    if (degree_days !== undefined) {
+      readingData.degree_days = degree_days;
+    }
+
     const { data: reading, error: readingError } = await supabase
       .from('pest_readings')
-      .insert({
-        device_id,
-        moth_count,
-        temperature
-      })
+      .insert(readingData)
       .select()
       .single();
 
@@ -70,24 +76,32 @@ Deno.serve(async (req) => {
 
     console.log('Reading inserted:', reading);
 
-    // Call calculate-alerts function
-    const calculateAlertsUrl = `${supabaseUrl}/functions/v1/calculate-alerts`;
-    const calculateResponse = await fetch(calculateAlertsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-      },
-      body: JSON.stringify({
-        farm_id: device.farm_id,
-        moth_count
-      })
-    });
+    // If alert_level is provided (edge-computed), update directly
+    if (alert_level) {
+      console.log('Using edge-computed alert level:', alert_level);
+      const { error: alertError } = await supabase
+        .from('ipm_alerts')
+        .upsert({
+          farm_id: device.farm_id,
+          alert_level: alert_level,
+          last_moth_count: moth_count,
+          last_updated: new Date().toISOString()
+        }, {
+          onConflict: 'farm_id'
+        });
 
-    if (!calculateResponse.ok) {
-      console.error('Error calling calculate-alerts');
+      if (alertError) {
+        console.error('Error updating alert:', alertError);
+      } else {
+        console.log('Alert updated with edge-computed status');
+      }
     } else {
-      console.log('Alert calculation triggered successfully');
+      // Fallback to server-side calculation if no alert_level provided
+      console.log('No edge-computed alert, falling back to server calculation');
+      const { data: alertResponse } = await supabase.functions.invoke('calculate-alerts', {
+        body: { farm_id: device.farm_id, moth_count }
+      });
+      console.log('Server-side alert calculation result:', alertResponse);
     }
 
     return new Response(
