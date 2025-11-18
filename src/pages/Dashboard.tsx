@@ -10,13 +10,10 @@ import FarmManagement from '@/components/farm/FarmManagement';
 import DeviceManagement from '@/components/device/DeviceManagement';
 import DeviceMonitor from '@/components/dashboard/DeviceMonitor';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
   const navigate = useNavigate();
-
-  return (
-    <div className="min-h-screen bg-muted/30">
+  return <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-card shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -28,24 +25,11 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/device-test')}
-                className="hidden sm:flex"
-              >
+              <Button variant="outline" size="sm" onClick={() => navigate('/device-test')} className="hidden sm:flex">
                 <TestTube2 className="h-4 w-4 mr-2" />
                 Test Device
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/install')}
-                className="hidden sm:flex"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Install App
-              </Button>
+              
               <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
                 <span className="relative flex h-2 w-2 mr-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -62,31 +46,19 @@ export default function Dashboard() {
       <main className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 gap-4 bg-transparent p-0">
-            <TabsTrigger 
-              value="map" 
-              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
-            >
+            <TabsTrigger value="map" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <MapPin className="h-4 w-4" />
               Farm Map
             </TabsTrigger>
-            <TabsTrigger 
-              value="devices" 
-              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
-            >
+            <TabsTrigger value="devices" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <Wifi className="h-4 w-4" />
               Live Devices
             </TabsTrigger>
-            <TabsTrigger 
-              value="analytics" 
-              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
-            >
+            <TabsTrigger value="analytics" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <Activity className="h-4 w-4" />
               Analytics
             </TabsTrigger>
-            <TabsTrigger 
-              value="manage-devices" 
-              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
-            >
+            <TabsTrigger value="manage-devices" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <Settings className="h-4 w-4" />
               Devices
             </TabsTrigger>
@@ -115,6 +87,5 @@ export default function Dashboard() {
 
         </Tabs>
       </main>
-    </div>
-  );
+    </div>;
 }
