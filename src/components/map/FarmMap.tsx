@@ -66,9 +66,9 @@ export default function FarmMap() {
   useEffect(() => {
     fetchFarms();
     
-    // Subscribe to realtime updates
+    // Subscribe to realtime updates for both alerts and readings
     const channel = supabase
-      .channel('ipm_alerts_changes')
+      .channel('farm_map_realtime')
       .on(
         'postgres_changes',
         {
@@ -76,7 +76,20 @@ export default function FarmMap() {
           schema: 'public',
           table: 'ipm_alerts'
         },
-        () => {
+        (payload) => {
+          console.log('Map: Real-time alert update:', payload);
+          fetchFarms();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pest_readings'
+        },
+        (payload) => {
+          console.log('Map: New pest reading from MQTT:', payload);
           fetchFarms();
         }
       )
