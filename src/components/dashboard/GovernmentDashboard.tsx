@@ -81,9 +81,9 @@ export default function GovernmentDashboard() {
         .select('*', { count: 'exact', head: true });
 
       if (farms) {
-        const redAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Red').length;
-        const yellowAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Yellow').length;
-        const greenAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Green').length;
+        const redAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Red').length;
+        const yellowAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Yellow').length;
+        const greenAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Green').length;
 
         setStats({
           totalFarms: farms.length,
