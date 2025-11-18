@@ -51,30 +51,34 @@ export default function PestIncidentsChart() {
     }));
     setFarms(farmsWithColors);
 
-    // Fetch readings with device and farm info
+    // Fetch devices to map device_id to farm_id
+    const { data: devicesData } = await supabase
+      .from('devices')
+      .select('id, farm_id');
+
+    if (!devicesData) return;
+
+    // Create device to farm mapping
+    const deviceToFarm: { [deviceId: string]: string } = {};
+    devicesData.forEach(device => {
+      deviceToFarm[device.id] = device.farm_id;
+    });
+
+    // Fetch readings separately (no nested query)
     const { data: readings } = await supabase
       .from('pest_readings')
-      .select(`
-        moth_count,
-        created_at,
-        device_id,
-        devices (
-          farm_id,
-          farms (
-            id,
-            farm_name
-          )
-        )
-      `)
+      .select('moth_count, created_at, device_id')
       .order('created_at', { ascending: true });
 
-    if (readings) {
+    console.log('Pest readings fetched:', readings);
+
+    if (readings && readings.length > 0) {
       // Group by date and farm
       const grouped: { [date: string]: { [farmId: string]: number } } = {};
       
       readings.forEach((reading: any) => {
         const date = new Date(reading.created_at).toLocaleDateString();
-        const farmId = reading.devices?.farms?.id;
+        const farmId = deviceToFarm[reading.device_id];
         
         if (farmId) {
           if (!grouped[date]) grouped[date] = {};
@@ -95,7 +99,11 @@ export default function PestIncidentsChart() {
         return dataPoint;
       });
 
+      console.log('Chart data prepared:', chartData);
       setChartData(chartData);
+    } else {
+      console.log('No readings data available');
+      setChartData([]);
     }
   };
 
