@@ -25,9 +25,9 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => navigate('/device-test')} className="hidden sm:flex">
+              <Button variant="outline" size="sm" onClick={() => navigate('/device-test')}>
                 <TestTube2 className="h-4 w-4 mr-2" />
-                Test Device
+                <span className="hidden sm:inline">Test Device</span>
               </Button>
               
               <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
