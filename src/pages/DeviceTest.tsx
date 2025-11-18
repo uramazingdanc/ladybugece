@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Send, CheckCircle2, XCircle, Loader2, ArrowLeft } from "lucide-react";
 import { z } from "zod";
+import { useNavigate } from "react-router-dom";
 
 const mqttPayloadSchema = z.object({
   device_id: z.string().min(1, "Device ID is required").max(50),
@@ -21,6 +22,7 @@ const mqttPayloadSchema = z.object({
 type MQTTPayload = z.infer<typeof mqttPayloadSchema>;
 
 export default function DeviceTest() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<MQTTPayload>({
     device_id: "ESP_TEST_001",
     moth_count: 15,
@@ -149,6 +151,15 @@ export default function DeviceTest() {
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-4xl">
       <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/')}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Dashboard
+        </Button>
         <h1 className="text-3xl font-bold mb-2">Device Testing</h1>
         <p className="text-muted-foreground">
           Simulate MQTT messages from ESP devices to test the complete data pipeline
