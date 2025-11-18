@@ -221,9 +221,9 @@ export default function DeviceManagement() {
         </div>
       </CardHeader>
       <CardContent>
-        {devices.length === 0 ? <div className="text-center py-12">
-            <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">No devices registered yet</p>
+        {devices.length === 0 ? <div className="text-center py-16 px-4">
+            <Smartphone className="h-16 w-16 md:h-12 md:w-12 mx-auto mb-6 md:mb-4 text-muted-foreground" />
+            <p className="text-base md:text-sm text-muted-foreground mb-4">No devices registered yet</p>
             
           </div> : <>
             {/* Desktop Table View */}
@@ -262,41 +262,41 @@ export default function DeviceManagement() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden space-y-4">
-              {devices.map(device => <Card key={device.id} className="border-2">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
+            <div className="md:hidden space-y-3 px-1">
+              {devices.map(device => <Card key={device.id} className="border-2 shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Smartphone className="h-4 w-4 text-primary" />
-                          <h3 className="font-semibold text-base">{device.device_name}</h3>
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <Smartphone className="h-5 w-5 text-primary flex-shrink-0" />
+                          <h3 className="font-semibold text-lg leading-tight">{device.device_name}</h3>
                         </div>
-                        <p className="font-mono text-xs text-muted-foreground break-all">
+                        <p className="font-mono text-sm text-muted-foreground break-all leading-relaxed">
                           {device.id}
                         </p>
                       </div>
                     </div>
                     
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Farm:</span>
-                        <span className="font-medium">{device.farms?.farm_name}</span>
+                    <div className="space-y-3 mb-5 bg-muted/30 rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">Farm:</span>
+                        <span className="font-semibold text-base text-right">{device.farms?.farm_name}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Added:</span>
-                        <span className="font-medium">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">Added:</span>
+                        <span className="font-semibold text-base">
                           {new Date(device.created_at).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1 h-11" onClick={() => handleEdit(device)}>
-                        <Edit className="h-4 w-4 mr-2" />
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1 h-12 text-base font-medium" onClick={() => handleEdit(device)}>
+                        <Edit className="h-5 w-5 mr-2" />
                         Edit
                       </Button>
-                      <Button variant="outline" className="flex-1 h-11" onClick={() => handleDelete(device.id)}>
-                        <Trash2 className="h-4 w-4 mr-2" />
+                      <Button variant="outline" className="flex-1 h-12 text-base font-medium" onClick={() => handleDelete(device.id)}>
+                        <Trash2 className="h-5 w-5 mr-2" />
                         Delete
                       </Button>
                     </div>
