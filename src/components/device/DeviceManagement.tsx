@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Device {
@@ -176,12 +176,13 @@ export default function DeviceManagement() {
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingDevice(null)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Device
+              <Button onClick={() => setEditingDevice(null)} size="lg" className="md:h-10">
+                <Plus className="h-5 w-5 mr-2" />
+                <span className="hidden sm:inline">Add Device</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleSubmit}>
                 <DialogHeader>
                   <DialogTitle>
@@ -195,7 +196,7 @@ export default function DeviceManagement() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="device_id">Device ID</Label>
+                    <Label htmlFor="device_id" className="text-base">Device ID</Label>
                     <Input
                       id="device_id"
                       placeholder="ESP_FARM_001"
@@ -203,13 +204,14 @@ export default function DeviceManagement() {
                       onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                       disabled={!!editingDevice}
                       required
+                      className="h-12 text-base"
                     />
                     <p className="text-xs text-muted-foreground">
                       Unique identifier for your ESP device
                     </p>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="device_name">Device Name</Label>
+                    <Label htmlFor="device_name" className="text-base">Device Name</Label>
                     <Input
                       id="device_name"
                       placeholder="Farm Sensor 1"
@@ -218,10 +220,11 @@ export default function DeviceManagement() {
                         setFormData({ ...formData, device_name: e.target.value })
                       }
                       required
+                      className="h-12 text-base"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="farm">Farm</Label>
+                    <Label htmlFor="farm" className="text-base">Farm</Label>
                     <Select
                       value={formData.farm_id}
                       onValueChange={(value) =>
@@ -229,12 +232,12 @@ export default function DeviceManagement() {
                       }
                       required
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12 text-base bg-background">
                         <SelectValue placeholder="Select a farm" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-popover z-50">
                         {farms.map((farm) => (
-                          <SelectItem key={farm.id} value={farm.id}>
+                          <SelectItem key={farm.id} value={farm.id} className="text-base">
                             {farm.farm_name}
                           </SelectItem>
                         ))}
@@ -242,11 +245,16 @@ export default function DeviceManagement() {
                     </Select>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={handleDialogClose}>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleDialogClose}
+                    className="h-12 w-full sm:w-auto text-base"
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" className="h-12 w-full sm:w-auto text-base">
                     {editingDevice ? 'Update Device' : 'Add Device'}
                   </Button>
                 </DialogFooter>
@@ -258,54 +266,113 @@ export default function DeviceManagement() {
       <CardContent>
         {devices.length === 0 ? (
           <div className="text-center py-12">
+            <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground mb-4">No devices registered yet</p>
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+            <Button onClick={() => setDialogOpen(true)} size="lg">
+              <Plus className="h-5 w-5 mr-2" />
               Add Your First Device
             </Button>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Device ID</TableHead>
-                <TableHead>Device Name</TableHead>
-                <TableHead>Farm</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Device ID</TableHead>
+                    <TableHead>Device Name</TableHead>
+                    <TableHead>Farm</TableHead>
+                    <TableHead>Added</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {devices.map((device) => (
+                    <TableRow key={device.id}>
+                      <TableCell className="font-mono text-sm">{device.id}</TableCell>
+                      <TableCell>{device.device_name}</TableCell>
+                      <TableCell>{device.farms?.farm_name}</TableCell>
+                      <TableCell>
+                        {new Date(device.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(device)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(device.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
               {devices.map((device) => (
-                <TableRow key={device.id}>
-                  <TableCell className="font-mono text-sm">{device.id}</TableCell>
-                  <TableCell>{device.device_name}</TableCell>
-                  <TableCell>{device.farms?.farm_name}</TableCell>
-                  <TableCell>
-                    {new Date(device.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                <Card key={device.id} className="border-2">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Smartphone className="h-4 w-4 text-primary" />
+                          <h3 className="font-semibold text-base">{device.device_name}</h3>
+                        </div>
+                        <p className="font-mono text-xs text-muted-foreground break-all">
+                          {device.id}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Farm:</span>
+                        <span className="font-medium">{device.farms?.farm_name}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Added:</span>
+                        <span className="font-medium">
+                          {new Date(device.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
                       <Button
                         variant="outline"
-                        size="sm"
+                        className="flex-1 h-11"
                         onClick={() => handleEdit(device)}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
+                        className="flex-1 h-11"
                         onClick={() => handleDelete(device.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </CardContent>
+                </Card>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
