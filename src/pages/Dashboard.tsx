@@ -20,8 +20,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <Bug className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold text-foreground">LADYBUG</h1>
-                <p className="text-sm text-muted-foreground">Onion Armyworm Monitoring System - Philippines</p>
+                <h1 className="font-bold text-foreground text-sm">LADYBUG</h1>
+                <p className="text-muted-foreground text-xs">Onion Armyworm Monitoring System - Philippines</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
