@@ -62,31 +62,40 @@ export default function GovernmentDashboard() {
   }, []);
 
   const fetchStats = async () => {
-    // Fetch all farms and their alerts
-    const { data: farms } = await supabase
-      .from('farms')
-      .select(`
-        id,
-        ipm_alerts (
-          alert_level
-        )
-      `);
+    try {
+      // Fetch all farms and their alerts
+      const { data: farms } = await supabase
+        .from('farms')
+        .select(`
+          id,
+          ipm_alerts (
+            alert_level
+          )
+        `);
 
-    if (farms) {
-      const redAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Red').length;
-      const yellowAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Yellow').length;
-      const greenAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Green').length;
+      // Fetch total readings count
+      const { count: readingsCount } = await supabase
+        .from('pest_readings')
+        .select('*', { count: 'exact', head: true });
 
-      setStats({
-        totalFarms: farms.length,
-        redAlerts,
-        yellowAlerts,
-        greenAlerts,
-        totalReadings: 0 // Could fetch total readings count if needed
-      });
+      if (farms) {
+        const redAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Red').length;
+        const yellowAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Yellow').length;
+        const greenAlerts = farms.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Green').length;
+
+        setStats({
+          totalFarms: farms.length,
+          redAlerts,
+          yellowAlerts,
+          greenAlerts,
+          totalReadings: readingsCount || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const generateReport = async () => {
