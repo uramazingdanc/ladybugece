@@ -1,1 +1,7 @@
 project_id = "hncumnbxaucdvjcnfptq"
+
+[functions.mqtt-bridge]
+verify_jwt = false
+
+[functions.ingest-data]
+verify_jwt = false
