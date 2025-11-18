@@ -6,7 +6,6 @@ import { FileText, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AlertDistributionChart from './AlertDistributionChart';
 import PestIncidentsChart from './PestIncidentsChart';
-
 interface Stats {
   totalFarms: number;
   redAlerts: number;
@@ -14,7 +13,6 @@ interface Stats {
   greenAlerts: number;
   totalReadings: number;
 }
-
 export default function GovernmentDashboard() {
   const [stats, setStats] = useState<Stats>({
     totalFarms: 0,
@@ -25,50 +23,35 @@ export default function GovernmentDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
-
   useEffect(() => {
     fetchStats();
 
     // Subscribe to real-time updates
-    const channel = supabase
-      .channel('dashboard-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ipm_alerts'
-        },
-        (payload) => {
-          console.log('Dashboard: Real-time alert update:', payload);
-          fetchStats();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'pest_readings'
-        },
-        (payload) => {
-          console.log('Dashboard: New reading received:', payload);
-          fetchStats();
-        }
-      )
-      .subscribe();
-
+    const channel = supabase.channel('dashboard-realtime').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'ipm_alerts'
+    }, payload => {
+      console.log('Dashboard: Real-time alert update:', payload);
+      fetchStats();
+    }).on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'pest_readings'
+    }, payload => {
+      console.log('Dashboard: New reading received:', payload);
+      fetchStats();
+    }).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
   const fetchStats = async () => {
     try {
       // Fetch all farms and their alerts
-      const { data: farms } = await supabase
-        .from('farms')
-        .select(`
+      const {
+        data: farms
+      } = await supabase.from('farms').select(`
           id,
           ipm_alerts (
             alert_level
@@ -76,15 +59,16 @@ export default function GovernmentDashboard() {
         `);
 
       // Fetch total readings count
-      const { count: readingsCount } = await supabase
-        .from('pest_readings')
-        .select('*', { count: 'exact', head: true });
-
+      const {
+        count: readingsCount
+      } = await supabase.from('pest_readings').select('*', {
+        count: 'exact',
+        head: true
+      });
       if (farms) {
         const redAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Red').length;
         const yellowAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Yellow').length;
         const greenAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Green').length;
-
         setStats({
           totalFarms: farms.length,
           redAlerts,
@@ -99,18 +83,21 @@ export default function GovernmentDashboard() {
       setLoading(false);
     }
   };
-
   const generateReport = async () => {
     setGeneratingReport(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-report', {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('generate-report', {
         method: 'GET'
       });
-
       if (error) throw error;
 
       // Download the report
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json'
+      });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -119,7 +106,6 @@ export default function GovernmentDashboard() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
       toast.success('Report generated successfully!');
     } catch (error: any) {
       toast.error('Failed to generate report: ' + error.message);
@@ -127,34 +113,23 @@ export default function GovernmentDashboard() {
       setGeneratingReport(false);
     }
   };
-
   if (loading) {
     return <div className="text-center py-12">Loading statistics...</div>;
   }
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Government Analytics Dashboard</h2>
+          <h2 className="font-bold text-sm">  Analytics Dashboard</h2>
           <p className="text-muted-foreground text-sm">Overview of pest monitoring across all farms</p>
         </div>
-        <Button 
-          onClick={generateReport}
-          disabled={generatingReport}
-          className="bg-primary hover:bg-primary/90"
-        >
-          {generatingReport ? (
-            <>
+        <Button onClick={generateReport} disabled={generatingReport} className="bg-primary hover:bg-primary/90">
+          {generatingReport ? <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Generating...
-            </>
-          ) : (
-            <>
+            </> : <>
               <FileText className="mr-2 h-4 w-4" />
               Generate Report
-            </>
-          )}
+            </>}
         </Button>
       </div>
 
@@ -227,11 +202,7 @@ export default function GovernmentDashboard() {
             <CardDescription>Current alert distribution</CardDescription>
           </CardHeader>
           <CardContent>
-            <AlertDistributionChart 
-              greenCount={stats.greenAlerts}
-              yellowCount={stats.yellowAlerts}
-              redCount={stats.redAlerts}
-            />
+            <AlertDistributionChart greenCount={stats.greenAlerts} yellowCount={stats.yellowAlerts} redCount={stats.redAlerts} />
           </CardContent>
         </Card>
 
@@ -246,6 +217,5 @@ export default function GovernmentDashboard() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 }
