@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bug, MapPin, Activity, Settings, Wifi, Download } from 'lucide-react';
+import { Bug, MapPin, Activity, Settings, Wifi, Download, TestTube2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,15 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/device-test')}
+                className="hidden sm:flex"
+              >
+                <TestTube2 className="h-4 w-4 mr-2" />
+                Test Device
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
