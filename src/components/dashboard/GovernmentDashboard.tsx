@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileText, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import AlertDistributionChart from './AlertDistributionChart';
+import PestIncidentsChart from './PestIncidentsChart';
 
 interface Stats {
   totalFarms: number;
@@ -225,9 +227,11 @@ export default function GovernmentDashboard() {
             <CardDescription>Current alert distribution</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
-              <p className="text-muted-foreground text-sm">Chart visualization coming soon</p>
-            </div>
+            <AlertDistributionChart 
+              greenCount={stats.greenAlerts}
+              yellowCount={stats.yellowAlerts}
+              redCount={stats.redAlerts}
+            />
           </CardContent>
         </Card>
 
@@ -237,8 +241,8 @@ export default function GovernmentDashboard() {
             <CardTitle className="text-lg">Pest Incidents Over Time</CardTitle>
             <CardDescription>Historical trend analysis</CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center justify-center h-[300px]">
-            <p className="text-muted-foreground text-sm">Time series data visualization coming soon</p>
+          <CardContent>
+            <PestIncidentsChart />
           </CardContent>
         </Card>
       </div>
