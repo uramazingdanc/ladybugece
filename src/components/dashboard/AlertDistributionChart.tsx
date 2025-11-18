@@ -8,10 +8,18 @@ interface AlertDistributionChartProps {
 
 export default function AlertDistributionChart({ greenCount, yellowCount, redCount }: AlertDistributionChartProps) {
   const data = [
-    { name: 'Green', value: greenCount, color: 'hsl(var(--success))' },
-    { name: 'Yellow', value: yellowCount, color: 'hsl(var(--warning))' },
-    { name: 'Red', value: redCount, color: 'hsl(var(--destructive))' }
-  ];
+    { name: 'Green', value: greenCount, color: '#22c55e' },
+    { name: 'Yellow', value: yellowCount, color: '#eab308' },
+    { name: 'Red', value: redCount, color: '#ef4444' }
+  ].filter(item => item.value > 0);
+
+  if (data.length === 0) {
+    return (
+      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        No alert data available
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height={300}>
