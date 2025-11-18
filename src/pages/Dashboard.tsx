@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
 import FarmManagement from '@/components/farm/FarmManagement';
+import DeviceManagement from '@/components/device/DeviceManagement';
 import DeviceMonitor from '@/components/dashboard/DeviceMonitor';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -37,7 +38,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 gap-4 bg-transparent p-0">
+          <TabsList className="grid w-full grid-cols-4 gap-4 bg-transparent p-0">
             <TabsTrigger 
               value="map" 
               className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
@@ -59,6 +60,13 @@ export default function Dashboard() {
               <Activity className="h-4 w-4" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger 
+              value="manage-devices" 
+              className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3"
+            >
+              <Settings className="h-4 w-4" />
+              Devices
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="map">
@@ -73,6 +81,13 @@ export default function Dashboard() {
 
           <TabsContent value="analytics">
             <GovernmentDashboard />
+          </TabsContent>
+
+          <TabsContent value="manage-devices">
+            <div className="space-y-6">
+              <DeviceManagement />
+              <FarmManagement />
+            </div>
           </TabsContent>
 
         </Tabs>
