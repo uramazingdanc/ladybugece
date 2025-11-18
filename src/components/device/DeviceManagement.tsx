@@ -149,14 +149,14 @@ export default function DeviceManagement() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Device Management</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-sm">Device Management</CardTitle>
+            <CardDescription className="text-xs">
               Register and manage ESP devices for farm monitoring
             </CardDescription>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingDevice(null)} size="lg" className="md:h-10">
+              <Button onClick={() => setEditingDevice(null)} size="lg" className="md:max-h-10 ">
                 <Plus className="h-5 w-5 mr-2" />
                 <span className="hidden sm:inline">Add Device</span>
                 <span className="sm:hidden">Add</span>
