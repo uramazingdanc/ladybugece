@@ -26,6 +26,39 @@ export default function GovernmentDashboard() {
 
   useEffect(() => {
     fetchStats();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ipm_alerts'
+        },
+        (payload) => {
+          console.log('Dashboard: Real-time alert update:', payload);
+          fetchStats();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pest_readings'
+        },
+        (payload) => {
+          console.log('Dashboard: New reading received:', payload);
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchStats = async () => {
