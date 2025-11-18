@@ -11,17 +11,17 @@ const corsHeaders = {
  * This function receives data forwarded from an MQTT bridge service.
  * The bridge subscribes to freemqtt.com topics and forwards messages here.
  * 
- * Expected payload format:
+ * Expected payload format from ESP device:
  * {
- *   "device_id": "ESP_001",
- *   "moth_count": 45,
- *   "temperature": 28.5,
- *   "degree_days": 320,
- *   "alert_level": "Yellow",
- *   "timestamp": "2025-01-18T10:30:00Z"
+ *   "device_id": "ESP_FARM_001",
+ *   "moth_count": 12,
+ *   "temperature_c": 28,
+ *   "computed_degree_days": 152.5,
+ *   "computed_status": "yellow_medium_risk"
  * }
  * 
- * MQTT Topic Structure: ladybug/{device_id}/status
+ * Computed status values: "green", "yellow", "yellow_medium_risk", "red"
+ * MQTT Topic: LADYBUG/farm_data
  */
 
 Deno.serve(async (req) => {
@@ -38,9 +38,37 @@ Deno.serve(async (req) => {
     console.log('MQTT Bridge webhook received data');
 
     const payload = await req.json();
-    const { device_id, moth_count, temperature, degree_days, alert_level, timestamp } = payload;
+    const { 
+      device_id, 
+      moth_count, 
+      temperature_c, 
+      temperature,
+      computed_degree_days, 
+      degree_days,
+      computed_status 
+    } = payload;
 
     console.log('MQTT payload:', payload);
+
+    // Map computed_status to alert_level (Green/Yellow/Red)
+    // ESP sends: "green", "yellow", "yellow_medium_risk", "red"
+    // Database expects: "Green", "Yellow", "Red"
+    let alert_level = null;
+    if (computed_status) {
+      const statusLower = computed_status.toLowerCase();
+      if (statusLower.includes('red')) {
+        alert_level = 'Red';
+      } else if (statusLower.includes('yellow')) {
+        alert_level = 'Yellow';
+      } else if (statusLower.includes('green')) {
+        alert_level = 'Green';
+      }
+      console.log(`Mapped computed_status "${computed_status}" to alert_level "${alert_level}"`);
+    }
+
+    // Use either new field names or legacy field names for backward compatibility
+    const temp = temperature_c || temperature || 0;
+    const degDays = computed_degree_days || degree_days;
 
     // Validate required fields
     if (!device_id) {
@@ -56,9 +84,9 @@ Deno.serve(async (req) => {
       body: {
         device_id,
         moth_count: moth_count || 0,
-        temperature: temperature || 0,
-        degree_days,
-        alert_level
+        temperature: temp,
+        degree_days: degDays,
+        alert_level: alert_level // Pre-computed by ESP device
       }
     });
 
