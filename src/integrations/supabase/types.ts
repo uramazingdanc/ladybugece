@@ -113,6 +113,7 @@ export type Database = {
       pest_readings: {
         Row: {
           created_at: string
+          degree_days: number | null
           device_id: string
           id: number
           moth_count: number
@@ -120,6 +121,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          degree_days?: number | null
           device_id: string
           id?: number
           moth_count: number
@@ -127,6 +129,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          degree_days?: number | null
           device_id?: string
           id?: number
           moth_count?: number
