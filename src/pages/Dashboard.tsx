@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Bug, MapPin, Activity, Settings, Wifi } from 'lucide-react';
+import { Bug, MapPin, Activity, Settings, Wifi, Download } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
 import FarmManagement from '@/components/farm/FarmManagement';
@@ -11,6 +13,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -24,14 +27,25 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Onion Armyworm Monitoring System - Philippines</p>
               </div>
             </div>
-            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-              <span className="relative flex h-2 w-2 mr-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              <Wifi className="h-3 w-3 mr-1" />
-              MQTT Live
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/install')}
+                className="hidden sm:flex"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Install App
+              </Button>
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                <span className="relative flex h-2 w-2 mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <Wifi className="h-3 w-3 mr-1" />
+                MQTT Live
+              </Badge>
+            </div>
           </div>
         </div>
       </header>
