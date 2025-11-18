@@ -50,7 +50,61 @@ export default function DeviceTest() {
       
       console.log("Testing MQTT payload:", validatedData);
 
-      // Call the mqtt-bridge edge function
+      // Step 1: Ensure test device and farm exist
+      console.log("Checking if test device exists...");
+      const { data: deviceCheck } = await supabase
+        .from('devices')
+        .select('id, farm_id')
+        .eq('id', validatedData.device_id)
+        .maybeSingle();
+
+      if (!deviceCheck) {
+        console.log("Device not found, creating test farm and device...");
+        
+        // Create a test farm if device doesn't exist
+        const { data: farmCheck } = await supabase
+          .from('farms')
+          .select('id')
+          .eq('farm_name', 'Test Farm')
+          .maybeSingle();
+
+        let testFarmId = farmCheck?.id;
+
+        if (!testFarmId) {
+          const { data: newFarm, error: farmError } = await supabase
+            .from('farms')
+            .insert({
+              farm_name: 'Test Farm',
+              latitude: 14.5995,
+              longitude: 120.9842,
+            })
+            .select('id')
+            .single();
+
+          if (farmError) throw new Error(`Failed to create test farm: ${farmError.message}`);
+          testFarmId = newFarm.id;
+          console.log("Created test farm:", testFarmId);
+        }
+
+        // Create the test device
+        const { error: deviceError } = await supabase
+          .from('devices')
+          .insert({
+            id: validatedData.device_id,
+            device_name: `Test Device ${validatedData.device_id}`,
+            farm_id: testFarmId,
+          });
+
+        if (deviceError) throw new Error(`Failed to create test device: ${deviceError.message}`);
+        console.log("Created test device:", validatedData.device_id);
+
+        toast.success("Test device registered successfully!");
+      } else {
+        console.log("Device exists, farm_id:", deviceCheck.farm_id);
+      }
+
+      // Step 2: Call the mqtt-bridge edge function
+      console.log("Sending MQTT message to bridge...");
       const { data, error } = await supabase.functions.invoke('mqtt-bridge', {
         body: validatedData,
       });
