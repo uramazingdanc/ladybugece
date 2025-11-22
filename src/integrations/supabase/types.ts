@@ -177,6 +177,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_readings_with_farms: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          alert_level: Database["public"]["Enums"]["alert_level"]
+          created_at: string
+          device_id: string
+          farm_id: string
+          farm_name: string
+          latitude: number
+          longitude: number
+          moth_count: number
+          temperature: number
+        }[]
+      }
       is_government: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
