@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import mqtt from 'https://esm.sh/mqtt@5.3.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,10 +7,12 @@ const corsHeaders = {
 };
 
 /**
- * MQTT Bridge Webhook Endpoint
+ * MQTT Bridge - Direct HiveMQ Cloud Subscriber
  * 
- * This function receives data forwarded from an MQTT bridge service.
- * The bridge subscribes to freemqtt.com topics and forwards messages here.
+ * This function acts as an MQTT client that subscribes directly to HiveMQ Cloud
+ * and processes messages from ESP devices in real-time.
+ * 
+ * Architecture: ESP Devices → HiveMQ Cloud → Supabase Edge Function (MQTT Client) → Supabase DB
  * 
  * Expected payload format from ESP device:
  * {
@@ -20,24 +23,21 @@ const corsHeaders = {
  *   "computed_status": "yellow_medium_risk"
  * }
  * 
- * Computed status values: "green", "yellow", "yellow_medium_risk", "red"
  * MQTT Topic: LADYBUG/farm_data
  */
 
-Deno.serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// HiveMQ Cloud credentials
+const HIVEMQ_HOST = Deno.env.get('HIVEMQ_HOST')!;
+const HIVEMQ_USERNAME = Deno.env.get('HIVEMQ_USERNAME')!;
+const HIVEMQ_PASSWORD = Deno.env.get('HIVEMQ_PASSWORD')!;
+
+async function processMessage(payload: any) {
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    console.log('MQTT Bridge webhook received data');
-
-    const payload = await req.json();
     const { 
       device_id, 
       moth_count, 
@@ -48,11 +48,9 @@ Deno.serve(async (req) => {
       computed_status 
     } = payload;
 
-    console.log('MQTT payload:', payload);
+    console.log('Processing MQTT message:', payload);
 
     // Map computed_status to alert_level (Green/Yellow/Red)
-    // ESP sends: "green", "yellow", "yellow_medium_risk", "red"
-    // Database expects: "Green", "Yellow", "Red"
     let alert_level = null;
     if (computed_status) {
       const statusLower = computed_status.toLowerCase();
@@ -73,51 +71,98 @@ Deno.serve(async (req) => {
     // Validate required fields
     if (!device_id) {
       console.error('Missing device_id');
-      return new Response(
-        JSON.stringify({ error: 'Missing device_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return;
     }
 
-    // Forward to ingest-data function with edge-computed data
+    // Forward to ingest-data function
     const { data: ingestResponse, error: ingestError } = await supabase.functions.invoke('ingest-data', {
       body: {
         device_id,
         moth_count: moth_count || 0,
         temperature: temp,
         degree_days: degDays,
-        alert_level: alert_level // Pre-computed by ESP device
+        alert_level: alert_level
       }
     });
 
     if (ingestError) {
       console.error('Error calling ingest-data:', ingestError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to process MQTT data' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    } else {
+      console.log('MQTT data processed successfully:', ingestResponse);
     }
-
-    console.log('MQTT data processed successfully');
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: 'MQTT data processed',
-        data: ingestResponse
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
   } catch (error) {
-    console.error('Error in mqtt-bridge:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('Error processing message:', error);
   }
+}
+
+async function connectAndSubscribe() {
+  console.log('Connecting to HiveMQ Cloud...');
+  
+  try {
+    const client = mqtt.connect(`mqtts://${HIVEMQ_HOST}:8883`, {
+      username: HIVEMQ_USERNAME,
+      password: HIVEMQ_PASSWORD,
+      clientId: `supabase_mqtt_${Date.now()}`,
+      reconnectPeriod: 10000,
+    });
+
+    client.on('connect', () => {
+      console.log('Connected to HiveMQ Cloud');
+      client.subscribe('LADYBUG/farm_data', { qos: 1 }, (err) => {
+        if (err) {
+          console.error('Subscribe error:', err);
+        } else {
+          console.log('Subscribed to LADYBUG/farm_data');
+        }
+      });
+    });
+
+    client.on('message', async (topic, message) => {
+      try {
+        const payload = JSON.parse(message.toString());
+        await processMessage(payload);
+      } catch (e) {
+        console.error('Error parsing MQTT message:', e);
+      }
+    });
+
+    client.on('error', (error) => {
+      console.error('MQTT connection error:', error);
+    });
+
+    client.on('reconnect', () => {
+      console.log('Reconnecting to HiveMQ Cloud...');
+    });
+
+    // Keep connection alive
+    await new Promise(() => {}); // Never resolve to keep function running
+  } catch (error) {
+    console.error('Fatal MQTT error:', error);
+    // Retry connection after delay
+    console.log('Retrying connection in 10 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    await connectAndSubscribe();
+  }
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // Start MQTT subscription as background task
+  connectAndSubscribe().catch(console.error);
+
+  return new Response(
+    JSON.stringify({ 
+      success: true,
+      message: 'MQTT subscriber started',
+      status: 'listening to LADYBUG/farm_data'
+    }),
+    { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    }
+  );
 });
