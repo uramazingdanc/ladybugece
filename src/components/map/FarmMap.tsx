@@ -272,40 +272,17 @@ export default function FarmMap() {
 
       if (alertsError) throw alertsError;
 
-      // Fetch latest temperature for each farm
-      const { data: devicesData } = await supabase
-        .from('devices')
-        .select('id, farm_id');
-
-      const farmsWithAlerts = await Promise.all(
-        (farmsData || []).map(async (farm) => {
-          const alert = alertsData?.find(a => a.farm_id === farm.id);
-          
-          // Get latest temperature reading for this farm
-          const farmDevices = devicesData?.filter(d => d.farm_id === farm.id) || [];
-          let temperature: number | undefined;
-          
-          if (farmDevices.length > 0) {
-            const { data: latestReading } = await supabase
-              .from('pest_readings')
-              .select('temperature')
-              .in('device_id', farmDevices.map(d => d.id))
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-            
-            temperature = latestReading?.temperature;
-          }
-          
-          return {
-            ...farm,
-            alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
-            last_moth_count: alert?.last_moth_count,
-            last_updated: alert?.last_updated,
-            temperature,
-          };
-        })
-      );
+      const farmsWithAlerts = (farmsData || []).map((farm) => {
+        const alert = alertsData?.find(a => a.farm_id === farm.id);
+        
+        return {
+          ...farm,
+          alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
+          last_moth_count: alert?.last_moth_count,
+          last_updated: alert?.last_updated,
+          temperature: alert?.last_temperature,
+        };
+      });
 
       setFarms(farmsWithAlerts);
       setLoading(false);
