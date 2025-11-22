@@ -90,7 +90,7 @@ export default function GovernmentDashboard() {
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-report`,
         {
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
         }
       );
