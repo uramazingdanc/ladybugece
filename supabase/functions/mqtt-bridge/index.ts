@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import mqtt from 'https://esm.sh/mqtt@5.3.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,14 +6,14 @@ const corsHeaders = {
 };
 
 /**
- * MQTT Bridge - Direct HiveMQ Cloud Subscriber
+ * MQTT Bridge - HiveMQ Cloud HTTP Webhook Receiver
  * 
- * This function acts as an MQTT client that subscribes directly to HiveMQ Cloud
- * and processes messages from ESP devices in real-time.
+ * This function receives HTTP POST requests from HiveMQ Cloud's HTTP Extension.
+ * HiveMQ forwards MQTT messages as HTTP requests, eliminating the need for an MQTT client.
  * 
- * Architecture: ESP Devices → HiveMQ Cloud → Supabase Edge Function (MQTT Client) → Supabase DB
+ * Architecture: ESP Devices → HiveMQ Cloud → HTTP Extension → Supabase Edge Function → Supabase DB
  * 
- * Expected payload format from ESP device:
+ * Expected payload format from HiveMQ HTTP Extension:
  * {
  *   "device_id": "ESP_FARM_001",
  *   "moth_count": 12,
@@ -31,11 +30,6 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// HiveMQ Cloud credentials
-const HIVEMQ_HOST = Deno.env.get('HIVEMQ_HOST')!;
-const HIVEMQ_USERNAME = Deno.env.get('HIVEMQ_USERNAME')!;
-const HIVEMQ_PASSWORD = Deno.env.get('HIVEMQ_PASSWORD')!;
-
 async function processMessage(payload: any) {
   try {
     const { 
@@ -48,7 +42,7 @@ async function processMessage(payload: any) {
       computed_status 
     } = payload;
 
-    console.log('Processing MQTT message:', payload);
+    console.log('Processing MQTT message from HiveMQ webhook:', payload);
 
     // Map computed_status to alert_level (Green/Yellow/Red)
     let alert_level = null;
@@ -71,7 +65,7 @@ async function processMessage(payload: any) {
     // Validate required fields
     if (!device_id) {
       console.error('Missing device_id');
-      return;
+      return { success: false, error: 'Missing device_id' };
     }
 
     // Forward to ingest-data function
@@ -87,61 +81,14 @@ async function processMessage(payload: any) {
 
     if (ingestError) {
       console.error('Error calling ingest-data:', ingestError);
+      return { success: false, error: ingestError };
     } else {
       console.log('MQTT data processed successfully:', ingestResponse);
+      return { success: true, data: ingestResponse };
     }
   } catch (error) {
     console.error('Error processing message:', error);
-  }
-}
-
-async function connectAndSubscribe() {
-  console.log('Connecting to HiveMQ Cloud...');
-  
-  try {
-    const client = mqtt.connect(`mqtts://${HIVEMQ_HOST}:8883`, {
-      username: HIVEMQ_USERNAME,
-      password: HIVEMQ_PASSWORD,
-      clientId: `supabase_mqtt_${Date.now()}`,
-      reconnectPeriod: 10000,
-    });
-
-    client.on('connect', () => {
-      console.log('Connected to HiveMQ Cloud');
-      client.subscribe('LADYBUG/farm_data', { qos: 1 }, (err) => {
-        if (err) {
-          console.error('Subscribe error:', err);
-        } else {
-          console.log('Subscribed to LADYBUG/farm_data');
-        }
-      });
-    });
-
-    client.on('message', async (topic, message) => {
-      try {
-        const payload = JSON.parse(message.toString());
-        await processMessage(payload);
-      } catch (e) {
-        console.error('Error parsing MQTT message:', e);
-      }
-    });
-
-    client.on('error', (error) => {
-      console.error('MQTT connection error:', error);
-    });
-
-    client.on('reconnect', () => {
-      console.log('Reconnecting to HiveMQ Cloud...');
-    });
-
-    // Keep connection alive
-    await new Promise(() => {}); // Never resolve to keep function running
-  } catch (error) {
-    console.error('Fatal MQTT error:', error);
-    // Retry connection after delay
-    console.log('Retrying connection in 10 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
-    await connectAndSubscribe();
+    return { success: false, error: String(error) };
   }
 }
 
@@ -151,18 +98,32 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Start MQTT subscription as background task
-  connectAndSubscribe().catch(console.error);
+  try {
+    // Parse the incoming JSON payload from HiveMQ HTTP Extension
+    const payload = await req.json();
+    
+    // Process the message
+    const result = await processMessage(payload);
 
-  return new Response(
-    JSON.stringify({ 
-      success: true,
-      message: 'MQTT subscriber started',
-      status: 'listening to LADYBUG/farm_data'
-    }),
-    { 
-      status: 200, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    }
-  );
+    return new Response(
+      JSON.stringify(result),
+      { 
+        status: result.success ? 200 : 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  } catch (error) {
+    console.error('Error in mqtt-bridge handler:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: 'Failed to process request',
+        details: String(error)
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
 });
