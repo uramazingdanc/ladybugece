@@ -56,18 +56,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch pest readings for the time period
+    // Fetch pest readings for the time period with farm data
     const { data: readings, error: readingsError } = await supabase
       .from('pest_readings')
       .select(`
-        id,
         moth_count,
         temperature,
         created_at,
         device_id,
         devices!pest_readings_device_id_fkey (
           farm_id,
-          device_name
+          farms!devices_farm_id_fkey (
+            id,
+            latitude,
+            longitude,
+            ipm_alerts (
+              alert_level
+            )
+          )
         )
       `)
       .gte('created_at', startDate.toISOString())
@@ -82,68 +88,41 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate statistics
-    const totalFarms = farms?.length || 0;
-    const redAlerts = farms?.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Red').length || 0;
-    const yellowAlerts = farms?.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Yellow').length || 0;
-    const greenAlerts = farms?.filter(f => f.ipm_alerts?.[0]?.alert_level === 'Green').length || 0;
+    // Generate CSV with columns: Time Stamp, Farm_ID, longitude, latitude, Moth count, Temperature, Farm status
+    const csvHeader = 'Time Stamp,Farm_ID,longitude,latitude,Moth count,Temperature,Farm status\n';
+    
+    const csvRows = readings?.map(reading => {
+      const device = reading.devices as any;
+      const farm = device?.farms;
+      const farmId = farm?.id || '';
+      const longitude = farm?.longitude || '';
+      const latitude = farm?.latitude || '';
+      const alertLevel = farm?.ipm_alerts?.[0]?.alert_level || 'Unknown';
+      const timestamp = new Date(reading.created_at).toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      return `${timestamp},${farmId},${longitude},${latitude},${reading.moth_count},${reading.temperature},${alertLevel}`;
+    }).join('\n') || '';
 
-    const totalReadings = readings?.length || 0;
-    const avgMothCount = readings && readings.length > 0
-      ? readings.reduce((sum, r) => sum + r.moth_count, 0) / readings.length
-      : 0;
-    const avgTemperature = readings && readings.length > 0
-      ? readings.reduce((sum, r) => sum + r.temperature, 0) / readings.length
-      : 0;
+    const csvContent = csvHeader + csvRows;
 
-    // Create GIS report data
-    const gisReport = {
-      metadata: {
-        generated_at: new Date().toISOString(),
-        period: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-          days
-        }
-      },
-      summary: {
-        total_farms: totalFarms,
-        alert_distribution: {
-          red: redAlerts,
-          yellow: yellowAlerts,
-          green: greenAlerts
-        },
-        total_readings: totalReadings,
-        average_moth_count: Math.round(avgMothCount * 100) / 100,
-        average_temperature: Math.round(avgTemperature * 100) / 100
-      },
-      farms: farms?.map(farm => ({
-        id: farm.id,
-        name: farm.farm_name,
-        owner: (Array.isArray(farm.profiles) ? farm.profiles[0] as any : farm.profiles as any)?.full_name || 'Unknown',
-        coordinates: {
-          latitude: farm.latitude,
-          longitude: farm.longitude
-        },
-        current_status: {
-          alert_level: farm.ipm_alerts?.[0]?.alert_level || 'Green',
-          last_moth_count: farm.ipm_alerts?.[0]?.last_moth_count || 0,
-          last_updated: farm.ipm_alerts?.[0]?.last_updated
-        }
-      })) || [],
-      readings_sample: readings?.slice(0, 100) // Include recent 100 readings
-    };
-
-    console.log('Report generated successfully');
+    console.log('CSV report generated successfully');
 
     return new Response(
-      JSON.stringify(gisReport),
+      csvContent,
       { 
         status: 200, 
         headers: { 
           ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="ladybug-report-${days}days.json"`
+          'Content-Type': 'text/csv',
+          'Content-Disposition': `attachment; filename="ladybug-report-${days}days.csv"`
         } 
       }
     );
