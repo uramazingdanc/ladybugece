@@ -169,9 +169,7 @@ This is an IoT + web dashboard integration project for agricultural pest managem
 - Additional analytics features
 - Alert notification channels (SMS, push notifications)
 
-## 📝 License
 
-[Your License Here]
 
 ## 🆘 Support
 
@@ -181,6 +179,4 @@ For setup issues:
 3. Monitor EMQX Cloud metrics for MQTT connectivity
 4. Check browser console for frontend errors
 
----
 
-**Made with ❤️ for farmers and agricultural monitoring**
