@@ -91,6 +91,20 @@ Deno.serve(async (req) => {
     // Generate CSV with columns: Time Stamp, Farm_ID, longitude, latitude, Moth count, Temperature, Farm status
     const csvHeader = 'Time Stamp,Farm_ID,longitude,latitude,Moth count,Temperature,Farm status\n';
     
+    // Map alert levels to descriptive status based on colors
+    const getStatusText = (alertLevel: string): string => {
+      switch (alertLevel) {
+        case 'Red':
+          return 'Critical';
+        case 'Yellow':
+          return 'Medium Risk';
+        case 'Green':
+          return 'Low Risk';
+        default:
+          return 'Unknown';
+      }
+    };
+    
     const csvRows = readings?.map(reading => {
       const device = reading.devices as any;
       const farm = device?.farms;
@@ -98,6 +112,7 @@ Deno.serve(async (req) => {
       const longitude = farm?.longitude || '';
       const latitude = farm?.latitude || '';
       const alertLevel = farm?.ipm_alerts?.[0]?.alert_level || 'Unknown';
+      const farmStatus = getStatusText(alertLevel);
       const timestamp = new Date(reading.created_at).toLocaleString('en-US', {
         year: 'numeric',
         month: '2-digit',
@@ -108,7 +123,7 @@ Deno.serve(async (req) => {
         hour12: false
       });
       
-      return `${timestamp},${farmId},${longitude},${latitude},${reading.moth_count},${reading.temperature},${alertLevel}`;
+      return `${timestamp},${farmId},${longitude},${latitude},${reading.moth_count},${reading.temperature},${farmStatus}`;
     }).join('\n') || '';
 
     const csvContent = csvHeader + csvRows;
