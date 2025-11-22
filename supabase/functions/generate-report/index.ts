@@ -29,57 +29,11 @@ Deno.serve(async (req) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Fetch all farms with their current alert status
-    const { data: farms, error: farmsError } = await supabase
-      .from('farms')
-      .select(`
-        id,
-        farm_name,
-        latitude,
-        longitude,
-        owner_id,
-        profiles!farms_owner_id_fkey (
-          full_name
-        ),
-        ipm_alerts (
-          alert_level,
-          last_moth_count,
-          last_updated
-        )
-      `);
-
-    if (farmsError) {
-      console.error('Error fetching farms:', farmsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch farms data' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Fetch pest readings for the time period with farm data
-    const { data: readings, error: readingsError } = await supabase
-      .from('pest_readings')
-      .select(`
-        moth_count,
-        temperature,
-        created_at,
-        device_id,
-        devices!pest_readings_device_id_fkey (
-          farm_id,
-          farms!devices_farm_id_fkey (
-            id,
-            farm_name,
-            latitude,
-            longitude,
-            ipm_alerts (
-              alert_level
-            )
-          )
-        )
-      `)
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString())
-      .order('created_at', { ascending: false });
+    // Fetch pest readings with farm data using RPC for proper JOIN
+    const { data: readings, error: readingsError } = await supabase.rpc('get_readings_with_farms', {
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString()
+    });
 
     if (readingsError) {
       console.error('Error fetching readings:', readingsError);
@@ -106,13 +60,11 @@ Deno.serve(async (req) => {
       }
     };
     
-    const csvRows = readings?.map(reading => {
-      const device = reading.devices as any;
-      const farm = device?.farms;
-      const farmName = farm?.farm_name || 'Unknown';
-      const longitude = farm?.longitude || '';
-      const latitude = farm?.latitude || '';
-      const alertLevel = farm?.ipm_alerts?.[0]?.alert_level || 'Unknown';
+    const csvRows = readings?.map((reading: any) => {
+      const farmName = reading.farm_name || 'Unknown';
+      const longitude = reading.longitude || '';
+      const latitude = reading.latitude || '';
+      const alertLevel = reading.alert_level || 'Unknown';
       const farmStatus = getStatusText(alertLevel);
       
       // Split timestamp into date and time
