@@ -99,6 +99,7 @@ This is the critical step that connects EMQX to Supabase.
    - **Headers**: Add the following headers:
      ```
      Content-Type: application/json
+     apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8
      ```
    - **Body Template**: Use the default or:
      ```json
