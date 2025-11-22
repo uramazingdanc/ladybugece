@@ -1,309 +1,224 @@
-# MQTT Bridge Setup Guide
+# MQTT Bridge Setup - EMQX Cloud HTTP Webhook Integration
 
-This guide explains how to connect your ESP devices using freemqtt.com to the LADYBUG Supabase backend.
+This document describes the **HTTP webhook approach** using **EMQX Cloud** for the MQTT data pipeline.
+
+## ⚠️ IMPORTANT: Using EMQX Cloud (Free Tier with Webhooks)
+
+**EMQX Cloud** offers HTTP webhooks on the **free Serverless tier**, making it the ideal choice for this project.
+
+👉 **Follow the complete setup guide: [EMQX_CLOUD_SETUP.md](./EMQX_CLOUD_SETUP.md)**
 
 ## Architecture Overview
 
 ```
-ESP Device → freemqtt.com (MQTT Broker) → Bridge Service → Supabase Edge Function → Database
+ESP Devices → EMQX Cloud MQTT Broker → HTTP Webhook → Supabase Edge Function → Database
 ```
 
-## Option 1: Using Make.com (Recommended - No Code Required)
+### Why HTTP Webhook Approach?
 
-Make.com (formerly Integromat) provides a visual automation platform that can subscribe to MQTT and forward to HTTP endpoints.
+1. **No Direct MQTT Client Needed**: Supabase Edge Functions run in Deno, which has compatibility issues with many MQTT client libraries
+2. **Simpler Architecture**: The MQTT broker (EMQX Cloud) handles the MQTT protocol complexity
+3. **HTTP is Universal**: Edge Functions excel at handling HTTP requests
+4. **Stateless**: No need to maintain persistent MQTT connections
+5. **Reliable**: EMQX's webhook system is production-ready
+6. **Free Tier Available**: EMQX Cloud includes webhooks on the free serverless tier
 
-### Steps:
+## How It Works
 
-1. **Create a Make.com Account**
-   - Go to https://make.com
-   - Sign up for a free account
+1. **ESP32 Device** publishes MQTT message to topic `LADYBUG/farm_data` on EMQX Cloud
+2. **EMQX Data Integration Rule** is configured to forward messages from this topic via HTTP webhook
+3. **Supabase Edge Function** (`mqtt-bridge`) receives the HTTP POST request with the MQTT payload
+4. **Edge Function** parses the JSON data and calls the `ingest-data` function
+5. **`ingest-data` Function** stores the data in the database and triggers alert calculations
 
-2. **Create a New Scenario**
-   - Click "Create a new scenario"
-   - Add an MQTT module as the trigger
+## Configuration Steps
 
-3. **Configure MQTT Connection**
-   - **Broker**: `freemqtt.hivemq.cloud`
-   - **Port**: `1883`
-   - **Topic**: `LADYBUG/farm_data`
-   - **Client ID**: `make_bridge_001` (or any unique ID)
-   - Leave username/password empty (public broker)
+### 1. EMQX Cloud Setup
 
-4. **Add HTTP Module**
-   - Add "HTTP > Make a request" module
-   - **URL**: `https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge`
-   - **Method**: POST
-   - **Headers**: 
-     - `Content-Type`: `application/json`
-     - `apikey`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8`
-   - **Body**: Map the MQTT message payload directly
+See **[EMQX_CLOUD_SETUP.md](./EMQX_CLOUD_SETUP.md)** for complete instructions on:
+- Creating EMQX Cloud serverless deployment (free)
+- Setting up authentication credentials
+- Configuring Data Integration with HTTP webhook rule
+- Testing the webhook connection
 
-5. **Test and Activate**
-   - Test with a sample MQTT message
-   - Turn on the scenario
+### 2. Supabase Edge Function
 
-**Cost**: Free tier includes 1,000 operations/month
+The `mqtt-bridge` Edge Function is already deployed and configured to:
+- Accept HTTP POST requests from EMQX webhooks
+- Parse JSON payloads with device data
+- Forward to the `ingest-data` function
+- Handle errors gracefully with CORS support
 
----
-
-## Option 2: Using Pipedream (Alternative No-Code)
-
-Similar to Make.com but with different pricing structure.
-
-### Steps:
-
-1. Go to https://pipedream.com
-2. Create new workflow
-3. Select "MQTT" as trigger
-4. Configure freemqtt.com connection
-5. Add HTTP request step to your Supabase function
-6. Deploy workflow
-
-**Cost**: Free tier includes 10,000 invocations/month
-
----
-
-## Option 3: Custom Node.js Bridge (Self-Hosted)
-
-For full control, you can run your own bridge service.
-
-### Installation:
-
-```bash
-npm install mqtt node-fetch
+**Function URL:**
+```
+https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge
 ```
 
-### Code (`mqtt-bridge.js`):
+### 3. Expected Payload Format
 
-```javascript
-const mqtt = require('mqtt');
-const fetch = require('node-fetch');
-
-const MQTT_BROKER = 'mqtt://freemqtt.hivemq.cloud:1883';
-const MQTT_TOPIC = 'LADYBUG/farm_data';
-const SUPABASE_URL = 'https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8';
-
-const client = mqtt.connect(MQTT_BROKER, {
-  clientId: 'ladybug_bridge_' + Math.random().toString(16).substr(2, 8)
-});
-
-client.on('connect', () => {
-  console.log('Connected to MQTT broker');
-  client.subscribe(MQTT_TOPIC, (err) => {
-    if (err) {
-      console.error('Subscription error:', err);
-    } else {
-      console.log(`Subscribed to ${MQTT_TOPIC}`);
-    }
-  });
-});
-
-client.on('message', async (topic, message) => {
-  console.log(`Received message on ${topic}:`, message.toString());
-  
-  try {
-    const payload = JSON.parse(message.toString());
-    
-    const response = await fetch(SUPABASE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-    console.log('Forwarded to Supabase:', result);
-  } catch (error) {
-    console.error('Error processing message:', error);
-  }
-});
-
-client.on('error', (error) => {
-  console.error('MQTT Error:', error);
-});
-
-console.log('MQTT Bridge Service Started');
-```
-
-### Running the Bridge:
-
-```bash
-node mqtt-bridge.js
-```
-
-### Deployment Options:
-- **Railway.app**: Free tier with simple deployment
-- **Render.com**: Free tier for background workers
-- **Heroku**: Paid plans available
-- **VPS**: Run on any Linux server (DigitalOcean, Linode, etc.)
-
----
-
-## Option 4: Direct HTTP (Simplest - Modify ESP Code)
-
-If you can modify your ESP device code, skip MQTT entirely and POST directly to the edge function.
-
-### ESP32 Arduino Code:
-
-```cpp
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
-const char* serverUrl = "https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge";
-const char* apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8";
-
-void setup() {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("WiFi connected");
-}
-
-void sendData(String deviceId, int mothCount, float temp, float degreeDays, String status) {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(serverUrl);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("apikey", apiKey);
-
-    StaticJsonDocument<256> doc;
-    doc["device_id"] = deviceId;
-    doc["moth_count"] = mothCount;
-    doc["temperature_c"] = temp;
-    doc["computed_degree_days"] = degreeDays;
-    doc["computed_status"] = status;
-
-    String payload;
-    serializeJson(doc, payload);
-
-    int httpCode = http.POST(payload);
-    
-    if (httpCode > 0) {
-      String response = http.getString();
-      Serial.println("Response: " + response);
-    } else {
-      Serial.println("Error: " + String(httpCode));
-    }
-    
-    http.end();
-  }
-}
-
-void loop() {
-  // Your sensor reading logic here
-  int mothCount = readMothCount();
-  float temperature = readTemperature();
-  float degreeDays = calculateDegreeDays(temperature);
-  String status = calculateStatus(degreeDays, mothCount);
-  
-  sendData("ESP_FARM_001", mothCount, temperature, degreeDays, status);
-  
-  delay(60000); // Send every minute
-}
-```
-
----
-
-## ESP Device Message Format
-
-Your ESP device should publish JSON messages in this format:
+The ESP device should publish JSON in this format:
 
 ```json
 {
   "device_id": "ESP_FARM_001",
-  "moth_count": 15,
+  "moth_count": 12,
   "temperature_c": 28.5,
   "computed_degree_days": 152.5,
   "computed_status": "yellow_medium_risk"
 }
 ```
 
-### Status Values:
-- `"green"` - Safe, low risk
-- `"yellow"` - Low-medium risk
-- `"yellow_medium_risk"` - Medium risk
-- `"red"` - High risk, immediate action required
+**Status Values:**
+- `green` or `green_low_risk` → Green alert
+- `yellow`, `yellow_medium_risk` → Yellow alert
+- `red`, `red_high_risk` → Red alert
 
----
+## ESP Device Configuration
 
-## Testing the Bridge
+Update your ESP32 code to connect to EMQX Cloud:
 
-1. **Using the Device Test Page**: Navigate to `/device-test` in your app
-2. **Using MQTT Explorer**: Download MQTT Explorer and publish test messages
-3. **Using mosquitto_pub**:
-```bash
-mosquitto_pub -h freemqtt.hivemq.cloud -p 1883 \
-  -t "LADYBUG/farm_data" \
-  -m '{"device_id":"ESP_TEST_001","moth_count":15,"temperature_c":28,"computed_degree_days":150,"computed_status":"yellow"}'
+```cpp
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+
+// EMQX Cloud Connection Settings
+const char* mqtt_server = "xxx.emqxsl.com";  // Your EMQX cluster address
+const int mqtt_port = 8883;                   // Secure MQTT port
+const char* mqtt_user = "ladybugdevice";      // Your username
+const char* mqtt_password = "@Ladybug2025";   // Your password
+const char* mqtt_topic = "LADYBUG/farm_data";
+
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  // Set up MQTT
+  espClient.setInsecure(); // For testing; use certificates in production
+  client.setServer(mqtt_server, mqtt_port);
+}
+
+void publishData(String deviceId, int mothCount, float temp, float degreeDays, String status) {
+  if (!client.connected()) {
+    client.connect("ESP32_Farm_Device", mqtt_user, mqtt_password);
+  }
+  
+  StaticJsonDocument<256> doc;
+  doc["device_id"] = deviceId;
+  doc["moth_count"] = mothCount;
+  doc["temperature_c"] = temp;
+  doc["computed_degree_days"] = degreeDays;
+  doc["computed_status"] = status;
+  
+  char jsonBuffer[256];
+  serializeJson(doc, jsonBuffer);
+  
+  client.publish(mqtt_topic, jsonBuffer, false);
+  Serial.println("Data published to EMQX Cloud");
+}
 ```
 
----
+## Testing the Pipeline
 
-## Email Alert Configuration
+### Test from EMQX Web Client
 
-To enable automatic email alerts for RED status:
+1. Log in to EMQX Cloud Console
+2. Go to **Tools** → **Websocket Client**
+3. Connect with your credentials
+4. Publish test message:
+   - **Topic:** `LADYBUG/farm_data`
+   - **QoS:** `1`
+   - **Payload:**
+     ```json
+     {
+       "device_id": "TEST_EMQX_01",
+       "moth_count": 7,
+       "temperature_c": 25.1,
+       "computed_degree_days": 110.0,
+       "computed_status": "yellow"
+     }
+     ```
 
-1. Create a Resend account: https://resend.com
-2. Verify your domain: https://resend.com/domains
-3. Get your API key: https://resend.com/api-keys
-4. Add the secret in Lovable Cloud:
-   - Go to Cloud → Secrets
-   - Add `RESEND_API_KEY` with your key
-5. Update the recipient email in `send-alert-email` function
+### Verify Data Flow
 
----
+1. **Check Supabase Logs:**
+   - Cloud → Edge Functions → mqtt-bridge → Logs
+   - Look for: `Processing MQTT message from HiveMQ webhook`
+
+2. **Check Database:**
+   - Database → Table Editor → `pest_readings`
+   - Verify new row appears with test data
+
+3. **Check Dashboard:**
+   - Open LADYBUG dashboard
+   - Verify farm status updates
 
 ## Monitoring
 
-- **Edge Function Logs**: Check Cloud → Edge Functions → Logs
-- **Database**: View real-time data in Cloud → Database → Tables
-- **Dashboard**: Monitor live status at `/` (dashboard)
+### EMQX Cloud Monitoring
+- Go to **Monitoring** tab in EMQX Console
+- View connected clients, message throughput
+- Check Data Integration → Rules → Metrics
 
----
+### Supabase Monitoring
+- Edge Functions → mqtt-bridge → Logs
+- Edge Functions → ingest-data → Logs
+- Database → Table Editor (real-time data)
 
 ## Troubleshooting
 
-### MQTT Connection Issues:
-- Check broker URL: `freemqtt.hivemq.cloud`
-- Verify port: `1883` for plain MQTT, `8883` for TLS
-- Ensure topic matches: `LADYBUG/farm_data`
+### Webhook Not Triggering
+- Verify Data Integration rule is enabled
+- Check rule SQL matches topic: `LADYBUG/farm_data`
+- Verify HTTP Server action URL is correct
+- Check EMQX rule execution metrics
 
-### Edge Function Errors:
-- Check device exists in database
-- Verify JSON format matches expected schema
-- Review edge function logs for specific errors
+### Data Not in Database
+- Check device exists in `devices` table
+- Verify Edge Function logs for errors
+- Ensure JSON payload matches expected format
+- Check RLS policies allow insertion
 
-### Data Not Appearing:
-- Verify device is registered in Devices tab
-- Check farm exists and is linked to device
-- Ensure alert level mapping is correct
+### ESP Connection Issues
+- Verify EMQX cluster address and port
+- Check username/password credentials
+- Ensure ESP has internet connectivity
+- Test with EMQX WebSocket client first
+
+## Cost & Scalability
+
+**EMQX Cloud Serverless (Free Tier):**
+- 1M session minutes/month
+- 1GB data transfer/month
+- HTTP webhooks included
+- No credit card required
+
+**Supabase (Free Tier):**
+- 500MB database
+- 50,000 API requests/month
+- 2GB bandwidth
+- Edge Functions included
+
+This is sufficient for testing and small-scale deployments. For production at scale, consider upgrading both services.
+
+## Next Steps
+
+1. ✅ Complete EMQX Cloud setup ([EMQX_CLOUD_SETUP.md](./EMQX_CLOUD_SETUP.md))
+2. ✅ Configure ESP32 devices with EMQX credentials
+3. ✅ Test with WebSocket client
+4. ✅ Monitor data flow in dashboard
+5. ✅ Set up email alerts for RED status (optional)
 
 ---
 
-## Production Recommendations
-
-1. **Use Option 4 (Direct HTTP)** - Simplest and most reliable
-2. **Secure your API**: Use Supabase Row Level Security
-3. **Monitor costs**: Track Supabase and email service usage
-4. **Regular backups**: Export database regularly
-5. **Update device firmware**: Keep ESP code up to date
-
----
-
-## Support
-
-For issues or questions:
-- Check LADYBUG dashboard logs
-- Review Supabase edge function logs
-- Test using the `/device-test` page
-- Consult MQTT_INTEGRATION.md for detailed protocol info
+**The mqtt-bridge function works with any MQTT broker that supports HTTP webhooks—no code changes needed!**
