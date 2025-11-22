@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
-import DeviceMonitor from '@/components/dashboard/DeviceMonitor';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
@@ -33,14 +32,10 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 gap-4 bg-transparent p-0">
+          <TabsList className="grid w-full grid-cols-2 gap-4 bg-transparent p-0">
             <TabsTrigger value="map" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <MapPin className="h-4 w-4" />
               Farm Map
-            </TabsTrigger>
-            <TabsTrigger value="devices" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
-              <Wifi className="h-4 w-4" />
-              Live Devices
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <Activity className="h-4 w-4" />
@@ -52,10 +47,6 @@ export default function Dashboard() {
             <ErrorBoundary>
               <FarmMap />
             </ErrorBoundary>
-          </TabsContent>
-
-          <TabsContent value="devices">
-            <DeviceMonitor />
           </TabsContent>
 
           <TabsContent value="analytics">
