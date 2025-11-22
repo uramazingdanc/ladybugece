@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
-import DeviceTest from "./pages/DeviceTest";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +18,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/install" element={<Install />} />
-            <Route path="/device-test" element={<DeviceTest />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
       </BrowserRouter>
