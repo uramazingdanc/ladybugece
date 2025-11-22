@@ -86,22 +86,23 @@ export default function GovernmentDashboard() {
   const generateReport = async () => {
     setGeneratingReport(true);
     try {
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('generate-report', {
-        method: 'GET'
-      });
-      if (error) throw error;
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-report`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
 
-      // Download the report
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: 'application/json'
-      });
+      if (!response.ok) throw new Error('Failed to generate report');
+
+      // Download the CSV file
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `ladybug-report-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `ladybug-report-${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
