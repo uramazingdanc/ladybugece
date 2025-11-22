@@ -1,18 +1,13 @@
 import { useState } from 'react';
-import { Bug, MapPin, Activity, Settings, Wifi, Download, TestTube2 } from 'lucide-react';
+import { Bug, MapPin, Activity, Wifi } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
-import FarmManagement from '@/components/farm/FarmManagement';
-import DeviceManagement from '@/components/device/DeviceManagement';
 import DeviceMonitor from '@/components/dashboard/DeviceMonitor';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
-  const navigate = useNavigate();
   return <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-card shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4">
@@ -24,28 +19,21 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-xs">Onion Armyworm Monitoring System - Philippines</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => navigate('/device-test')}>
-                <TestTube2 className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Test Device</span>
-              </Button>
-              
-              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                <span className="relative flex h-2 w-2 mr-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                <Wifi className="h-3 w-3 mr-1" />
-                MQTT Live
-              </Badge>
-            </div>
+            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+              <span className="relative flex h-2 w-2 mr-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <Wifi className="h-3 w-3 mr-1" />
+              MQTT Live
+            </Badge>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 gap-4 bg-transparent p-0">
+          <TabsList className="grid w-full grid-cols-3 gap-4 bg-transparent p-0">
             <TabsTrigger value="map" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <MapPin className="h-4 w-4" />
               Farm Map
@@ -57,10 +45,6 @@ export default function Dashboard() {
             <TabsTrigger value="analytics" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
               <Activity className="h-4 w-4" />
               Analytics
-            </TabsTrigger>
-            <TabsTrigger value="manage-devices" className="flex items-center gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm border-b-2 border-transparent data-[state=active]:border-primary rounded-none py-3">
-              <Settings className="h-4 w-4" />
-              Devices
             </TabsTrigger>
           </TabsList>
 
@@ -76,13 +60,6 @@ export default function Dashboard() {
 
           <TabsContent value="analytics">
             <GovernmentDashboard />
-          </TabsContent>
-
-          <TabsContent value="manage-devices">
-            <div className="space-y-6">
-              <DeviceManagement />
-              <FarmManagement />
-            </div>
           </TabsContent>
 
         </Tabs>
