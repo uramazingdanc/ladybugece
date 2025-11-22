@@ -1,47 +1,49 @@
-# Make.com MQTT to Supabase Integration
+# Make.com MQTT to Supabase Integration with HiveMQ Cloud
 
-This guide explains how to use Make.com to bridge MQTT messages from ESP devices to the LADYBUG Supabase backend.
+This guide explains how to use Make.com with HiveMQ Cloud to bridge MQTT messages from ESP devices to the LADYBUG Supabase backend.
 
 ## Architecture Overview
 
 ```
-ESP Devices → MQTT Broker (freemqtt.com) → Make.com → Supabase Edge Function
+ESP Devices → MQTT Broker (HiveMQ Cloud) → Make.com Webhook → Supabase Edge Function
 ```
 
-ESP devices publish sensor data and pre-computed alert statuses to an MQTT broker. Make.com subscribes to the MQTT topic and forwards messages to the Supabase `mqtt-bridge` edge function via HTTP POST.
+ESP devices publish sensor data and pre-computed alert statuses to HiveMQ Cloud MQTT broker. Make.com receives webhook notifications from HiveMQ Cloud and forwards messages to the Supabase `mqtt-bridge` edge function via HTTP POST.
 
-## Step 1: Create a Make.com Account
+## Step 1: Set Up HiveMQ Cloud
 
-1. Go to [Make.com](https://www.make.com/)
+1. Go to [HiveMQ Cloud](https://console.hivemq.cloud/)
 2. Sign up for a free account
-3. Navigate to "Scenarios" in the dashboard
+3. Create a new cluster (free tier available)
+4. Note your cluster URL (e.g., `xxxxxx.s2.eu.hivemq.cloud`)
+5. Create credentials:
+   - Go to "Access Management"
+   - Create a new user with username and password
+   - Set permissions for topic `LADYBUG/#`
 
-## Step 2: Create a New Scenario
+## Step 2: Configure HiveMQ Cloud Data Hub (Extension)
 
-1. Click "Create a new scenario"
-2. Search for "MQTT" in the modules list
-3. Add the **MQTT → Watch Messages** module as the first step
+1. In your HiveMQ Cloud cluster, go to "Data Hub" or "Extensions"
+2. Create a new HTTP data stream/webhook:
+   - **Name**: `LADYBUG_to_Make`
+   - **Topic Filter**: `LADYBUG/farm_data`
+   - **Webhook URL**: (We'll get this from Make.com in Step 3)
+   - **Method**: `POST`
+   - **Content-Type**: `application/json`
 
-## Step 3: Configure MQTT Connection
+## Step 3: Create Make.com Webhook
 
-In the MQTT Watch Messages module:
+1. Go to [Make.com](https://www.make.com/) and sign up
+2. Create a new scenario
+3. Add **Webhooks → Custom Webhook** as the first module
+4. Click "Create a webhook"
+5. Copy the webhook URL (e.g., `https://hook.us1.make.com/xxxxx`)
+6. Go back to HiveMQ Cloud Data Hub and paste this URL as the webhook destination
 
-### Connection Settings:
-- **Broker URL**: `mqtt://broker.hivemq.com` (or your preferred broker)
-  - For freemqtt.com: `mqtt://broker.freemqtt.com`
-- **Port**: `1883` (standard MQTT port)
-- **Client ID**: `make_ladybug_bridge` (can be any unique name)
-- **Username**: Leave empty (unless your broker requires auth)
-- **Password**: Leave empty (unless your broker requires auth)
+## Step 4: Configure Data Mapping in Make.com
 
-### Topic Settings:
-- **Topic**: `LADYBUG/farm_data`
-- **QoS**: `0` or `1` (quality of service level)
-
-## Step 4: Add HTTP Request Module
-
-1. Click the "+" button after the MQTT module
-2. Search for "HTTP" and select **HTTP → Make a Request**
+1. After the webhook module, click the "+" button
+2. Search for "HTTP" and add **HTTP → Make a Request**
 
 ### HTTP Request Configuration:
 
@@ -54,42 +56,57 @@ In the MQTT Watch Messages module:
   ```
 - **Body Type**: `Raw`
 - **Content Type**: `JSON (application/json)`
-- **Request Content**: Map the MQTT message fields
 
 ### Body Mapping:
 
-Click "Parse response" and map the MQTT payload fields:
+Map the webhook payload to Supabase format. HiveMQ sends the MQTT message in the webhook body:
 
 ```json
 {
-  "device_id": "{{1.data.device_id}}",
-  "moth_count": "{{1.data.moth_count}}",
-  "temperature_c": "{{1.data.temperature_c}}",
-  "computed_degree_days": "{{1.data.computed_degree_days}}",
-  "computed_status": "{{1.data.computed_status}}"
+  "device_id": "{{payload.device_id}}",
+  "moth_count": "{{payload.moth_count}}",
+  "temperature_c": "{{payload.temperature_c}}",
+  "computed_degree_days": "{{payload.computed_degree_days}}",
+  "computed_status": "{{payload.computed_status}}"
 }
 ```
 
-**Note**: The `1.data.*` references map to the MQTT message data from step 1.
+## Step 5: Test the Integration
 
-## Step 5: Test the Scenario
+1. Use an MQTT client (like MQTT Explorer or mosquitto_pub) to publish a test message:
+   ```bash
+   mosquitto_pub -h your-cluster.s2.eu.hivemq.cloud \
+     -p 8883 -u your-username -P your-password \
+     -t "LADYBUG/farm_data" \
+     --cafile path/to/ca.pem \
+     -m '{"device_id":"ESP_FARM_001","moth_count":12,"temperature_c":28.5,"computed_degree_days":152.3,"computed_status":"yellow_medium_risk"}'
+   ```
 
-1. Click "Run once" at the bottom of the scenario
-2. Have an ESP device publish a test message to the MQTT topic
-3. Make.com will capture the message and forward it to Supabase
-4. Check the execution history to verify success
+2. Check Make.com execution history to verify the webhook was triggered
+3. Verify data appears in Supabase database
 
 ## Step 6: Activate the Scenario
 
-1. Once testing is successful, click the "ON/OFF" toggle to activate
-2. Name your scenario (e.g., "LADYBUG MQTT Bridge")
+1. Once testing is successful, toggle the scenario to "ON"
+2. Name your scenario (e.g., "HiveMQ to Supabase Bridge")
 3. Save the scenario
 
-The bridge will now run continuously, forwarding MQTT messages in real-time.
+The bridge will now forward all MQTT messages from HiveMQ Cloud to Supabase automatically.
 
-## ESP Device Message Format
+## ESP Device Configuration
 
-Your ESP devices should publish JSON messages to the `LADYBUG/farm_data` topic with this format:
+Configure your ESP devices to connect to HiveMQ Cloud and publish to the `LADYBUG/farm_data` topic:
+
+### MQTT Connection Settings:
+- **Broker**: `your-cluster.s2.eu.hivemq.cloud`
+- **Port**: `8883` (TLS/SSL)
+- **Username**: Your HiveMQ Cloud username
+- **Password**: Your HiveMQ Cloud password
+- **Topic**: `LADYBUG/farm_data`
+
+### Message Format:
+
+ESP devices should publish JSON messages with this format:
 
 ```json
 {
@@ -112,9 +129,14 @@ Your ESP devices should publish JSON messages to the `LADYBUG/farm_data` topic w
 
 ## Monitoring
 
+### HiveMQ Cloud Console:
+- Monitor active connections and message throughput
+- View message rates and bandwidth usage
+- Check client connection status
+
 ### Make.com Dashboard:
 - View execution history in the scenario page
-- Monitor for errors or failed executions
+- Monitor for errors or failed webhook executions
 - Check data throughput and processing times
 
 ### Supabase Logs:
@@ -124,16 +146,16 @@ Your ESP devices should publish JSON messages to the `LADYBUG/farm_data` topic w
 
 ### LADYBUG Dashboard:
 - Open the Farm Map to see real-time alert updates
-- Check Live Devices tab for device status
 - View Analytics for historical trends
 
 ## Troubleshooting
 
 ### No messages received in Make.com:
-- Verify MQTT broker URL and port
-- Check that ESP devices are publishing to the correct topic
-- Ensure the Make.com scenario is activated (toggle ON)
-- Test MQTT connection using MQTT Explorer
+- Verify HiveMQ Cloud webhook is correctly configured
+- Check that ESP devices are successfully connecting to HiveMQ Cloud
+- Ensure devices are publishing to the correct topic `LADYBUG/farm_data`
+- Verify webhook URL in HiveMQ matches Make.com webhook URL
+- Check HiveMQ Cloud logs for connection/publish errors
 
 ### HTTP request fails:
 - Verify the Supabase function URL is correct
@@ -156,24 +178,21 @@ Your ESP devices should publish JSON messages to the `LADYBUG/farm_data` topic w
 
 For production deployments with high message volumes, consider upgrading to a paid Make.com plan.
 
-## Alternative MQTT Brokers
+## HiveMQ Cloud Pricing
 
-While this guide uses freemqtt.com/HiveMQ public brokers, you can use any MQTT broker:
+**Free Tier:**
+- Up to 100 concurrent connections
+- 10 GB data transfer per month
+- Suitable for testing and small deployments
 
-- **Mosquitto** (self-hosted)
-- **AWS IoT Core**
-- **Azure IoT Hub**
-- **CloudMQTT**
-- **HiveMQ Cloud**
-
-Simply update the broker URL in the Make.com MQTT module configuration.
+For production deployments with more devices, consider upgrading to a paid HiveMQ Cloud plan.
 
 ## Security Best Practices
 
-For production deployments:
+HiveMQ Cloud provides enterprise-grade security:
 
-1. **Use TLS/SSL**: Configure MQTT over TLS (port 8883)
-2. **Authentication**: Use username/password for MQTT broker
-3. **Private Broker**: Avoid public MQTT brokers in production
-4. **API Security**: Use Supabase service role key for authenticated requests
-5. **Data Validation**: Ensure ESP devices send validated data formats
+1. **TLS/SSL Encryption**: All connections use port 8883 with TLS encryption
+2. **Authentication**: Username/password authentication required for all clients
+3. **Access Control**: Set topic-level permissions in HiveMQ Access Management
+4. **Private Cluster**: Your HiveMQ Cloud cluster is isolated and private
+5. **Data Validation**: Ensure ESP devices send validated data formats before publishing
