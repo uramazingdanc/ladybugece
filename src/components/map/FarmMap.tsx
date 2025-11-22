@@ -24,6 +24,7 @@ interface Farm {
   alert_level?: 'Green' | 'Yellow' | 'Red';
   last_moth_count?: number;
   last_updated?: string;
+  temperature?: number;
 }
 
 // Helper function to get marker color based on alert level
@@ -161,6 +162,11 @@ export default function FarmMap() {
                     <span class="font-semibold">Moth Count:</span> ${properties.last_moth_count}
                   </div>
                 ` : ''}
+                ${properties.temperature !== undefined ? `
+                  <div>
+                    <span class="font-semibold">Temperature:</span> ${properties.temperature}°C
+                  </div>
+                ` : ''}
                 ${properties.last_updated ? `
                   <div>
                     <span class="font-semibold">Last Updated:</span> ${new Date(properties.last_updated).toLocaleString()}
@@ -194,6 +200,7 @@ export default function FarmMap() {
         alert_level: farm.alert_level,
         last_moth_count: farm.last_moth_count,
         last_updated: farm.last_updated,
+        temperature: farm.temperature,
       });
 
       const markerColor = getMarkerColor(farm.alert_level);
@@ -255,15 +262,40 @@ export default function FarmMap() {
 
       if (alertsError) throw alertsError;
 
-      const farmsWithAlerts = farmsData?.map(farm => {
-        const alert = alertsData?.find(a => a.farm_id === farm.id);
-        return {
-          ...farm,
-          alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
-          last_moth_count: alert?.last_moth_count,
-          last_updated: alert?.last_updated,
-        };
-      }) || [];
+      // Fetch latest temperature for each farm
+      const { data: devicesData } = await supabase
+        .from('devices')
+        .select('id, farm_id');
+
+      const farmsWithAlerts = await Promise.all(
+        (farmsData || []).map(async (farm) => {
+          const alert = alertsData?.find(a => a.farm_id === farm.id);
+          
+          // Get latest temperature reading for this farm
+          const farmDevices = devicesData?.filter(d => d.farm_id === farm.id) || [];
+          let temperature: number | undefined;
+          
+          if (farmDevices.length > 0) {
+            const { data: latestReading } = await supabase
+              .from('pest_readings')
+              .select('temperature')
+              .in('device_id', farmDevices.map(d => d.id))
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            
+            temperature = latestReading?.temperature;
+          }
+          
+          return {
+            ...farm,
+            alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
+            last_moth_count: alert?.last_moth_count,
+            last_updated: alert?.last_updated,
+            temperature,
+          };
+        })
+      );
 
       setFarms(farmsWithAlerts);
       setLoading(false);
