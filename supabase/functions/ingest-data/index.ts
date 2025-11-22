@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
           farm_id: device.farm_id,
           alert_level: alert_level,
           last_moth_count: moth_count,
+          last_temperature: temperature,
           last_updated: new Date().toISOString()
         }, {
           onConflict: 'farm_id'

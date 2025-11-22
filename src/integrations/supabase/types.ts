@@ -86,18 +86,21 @@ export type Database = {
           alert_level: Database["public"]["Enums"]["alert_level"]
           farm_id: string
           last_moth_count: number
+          last_temperature: number | null
           last_updated: string
         }
         Insert: {
           alert_level?: Database["public"]["Enums"]["alert_level"]
           farm_id: string
           last_moth_count?: number
+          last_temperature?: number | null
           last_updated?: string
         }
         Update: {
           alert_level?: Database["public"]["Enums"]["alert_level"]
           farm_id?: string
           last_moth_count?: number
+          last_temperature?: number | null
           last_updated?: string
         }
         Relationships: [
