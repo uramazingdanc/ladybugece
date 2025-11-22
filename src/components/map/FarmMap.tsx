@@ -143,6 +143,16 @@ export default function FarmMap() {
           const coordinates = (feature.getGeometry() as Point).getCoordinates();
           const properties = feature.getProperties();
           
+          // Helper function to get status text
+          const getStatusText = (alertLevel) => {
+            switch (alertLevel) {
+              case 'Red': return 'Critical';
+              case 'Yellow': return 'Medium Risk';
+              case 'Green': return 'Low Risk';
+              default: return 'Unknown';
+            }
+          };
+          
           // Update popup content
           popupRef.current.innerHTML = `
             <div class="p-4 bg-card border border-border rounded-lg shadow-lg min-w-[200px]">
@@ -154,7 +164,7 @@ export default function FarmMap() {
                 <div class="flex items-center gap-2">
                   <span class="font-semibold">Status:</span>
                   <span class="px-2 py-1 rounded text-white font-medium" style="background-color: ${getAlertColor(properties.alert_level)}">
-                    ${properties.alert_level || 'Unknown'}
+                    ${getStatusText(properties.alert_level)}
                   </span>
                 </div>
                 ${properties.last_moth_count !== undefined ? `
