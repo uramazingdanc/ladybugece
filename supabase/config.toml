@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.send-alert-email]
 verify_jwt = false
+
+[functions.mqtt-websocket]
+verify_jwt = false
