@@ -1,225 +1,286 @@
-# EMQX Cloud Setup Guide - HTTP Webhook Integration
+# EMQX Cloud Complete Setup Guide
 
-## Overview
+Complete instructions for testing LADYBUG with EMQX Cloud, including all test data.
 
-This guide covers setting up **EMQX Cloud** (free tier) to forward MQTT messages to your Supabase Edge Function via HTTP webhooks.
+---
 
-**Architecture:**
-```
-ESP Devices → EMQX Cloud MQTT Broker → HTTP Webhook → Supabase mqtt-bridge Function → Database
-```
+## Quick Start (If You Have EMQX Already)
 
-## Why EMQX Cloud?
-
-- ✅ **Free tier includes HTTP webhooks** (unlike HiveMQ Cloud Starter)
-- ✅ Simple webhook configuration
-- ✅ Reliable and scalable
-- ✅ Easy-to-use dashboard
+Jump to [Step 6: Test Using WebSocket Client](#step-6-test-using-websocket-client) if your EMQX deployment is already set up.
 
 ---
 
 ## Step 1: Create EMQX Cloud Account
 
 1. Go to [https://www.emqx.com/en/cloud](https://www.emqx.com/en/cloud)
-2. Click **"Start Free"** or **"Sign Up"**
-3. Create your account (email verification required)
-4. Log in to the EMQX Cloud Console
+2. Click **"Start Free"**
+3. Create account & verify email
+4. Log in to Console
 
 ---
 
-## Step 2: Create a Serverless Deployment (Free Tier)
+## Step 2: Create Serverless Deployment (Free)
 
-1. In the EMQX Cloud Console, click **"New Deployment"**
-2. Select **"Serverless"** (this is the free tier)
-3. Choose a region close to your location (e.g., AWS ap-southeast-1 for Southeast Asia)
-4. Give it a name: `ladybug-mqtt-broker`
+1. Click **"New Deployment"**
+2. Select **"Serverless"** (free tier)
+3. Choose region (e.g., `ap-southeast-1` for Southeast Asia)
+4. Name it: `ladybug-mqtt`
 5. Click **"Create"**
-6. Wait for deployment to complete (usually 1-2 minutes)
+6. Wait ~2 minutes for deployment
 
 ---
 
-## Step 3: Get Connection Details
+## Step 3: Note Connection Details
 
-Once deployment is ready:
+From the deployment Overview page, note:
 
-1. Click on your deployment name
-2. Go to **"Overview"** tab
-3. Note down:
-   - **Cluster Address** (e.g., `xxx.emqxsl.com`)
-   - **Port**: `8883` (for secure MQTT over TLS)
-   - **Connection Port** for WebSocket: `8084`
-
----
-
-## Step 4: Create Authentication Credentials
-
-1. In your deployment, go to **"Authentication"** in the left menu
-2. Click **"Add"** or **"Create Authentication"**
-3. Choose **"Username/Password"** authentication
-4. Add credentials:
-   - **Username**: `ladybugdevice`
-   - **Password**: `@Ladybug2025` (or your preferred secure password)
-5. Click **"Confirm"**
+| Setting | Value |
+|---------|-------|
+| **Cluster Address** | `xxxxx.ala.ap-southeast-1.emqxsl.com` |
+| **MQTT Port (TLS)** | `8883` |
+| **WebSocket Port** | `8084` |
 
 ---
 
-## Step 5: Configure Data Integration (HTTP Webhook)
+## Step 4: Create Authentication
 
-This is the critical step that connects EMQX to Supabase.
-
-### 5.1 Create a Rule
-
-1. Go to **"Data Integration"** → **"Rules"** in the left menu
-2. Click **"Create Rule"**
-3. In the **SQL Editor**, enter:
-   ```sql
-   SELECT
-     payload.device_id as device_id,
-     payload.moth_count as moth_count,
-     payload.temperature_c as temperature_c,
-     payload.computed_degree_days as computed_degree_days,
-     payload.computed_status as computed_status
-   FROM
-     "LADYBUG/farm_data"
-   ```
-4. This rule will trigger for all messages published to `LADYBUG/farm_data`
-5. Click **"Next"**
-
-### 5.2 Add HTTP Server Action
-
-1. Under **"Action"**, click **"Add Action"**
-2. Select **"HTTP Server"** (or "Webhook")
-3. Configure the webhook:
-   - **Name**: `Supabase_Webhook`
-   - **Method**: `POST`
-   - **URL**: 
-     ```
-     https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge
-     ```
-   - **Headers**: Add the following headers:
-     ```
-     Content-Type: application/json
-     apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8
-     ```
-   - **Body Template**: Use the default or:
-     ```json
-     ${payload}
-     ```
+1. Go to **"Access Control"** → **"Authentication"**
+2. Click **"Add"**
+3. Enter:
+   - **Username**: `ladybug`
+   - **Password**: `Ladybug2025!`
 4. Click **"Confirm"**
-5. Click **"Create** to save the rule
 
 ---
 
-## Step 6: Update ESP32 Connection Code
+## Step 5: Configure Webhook (Data Integration)
 
-Update your ESP32 device code to connect to EMQX Cloud:
+### 5.1 Create HTTP Resource
 
-```cpp
-// EMQX Cloud Connection Settings
-const char* mqtt_server = "xxx.emqxsl.com";  // Your EMQX cluster address
-const int mqtt_port = 8883;                   // Secure MQTT port
-const char* mqtt_user = "ladybugdevice";      // Your username
-const char* mqtt_password = "@Ladybug2025";   // Your password
-const char* mqtt_topic = "LADYBUG/farm_data";
+1. Go to **"Data Integrations"** in left menu
+2. Click **"New Resource"** → **"HTTP Server"**
+3. Configure:
 
-// In your setup() function, connect using TLS
-WiFiClientSecure espClient;
-espClient.setInsecure();  // For testing; use proper certificates in production
-PubSubClient client(espClient);
+| Field | Value |
+|-------|-------|
+| **Name** | `supabase-ladybug` |
+| **URL** | `https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-websocket` |
+| **Method** | `POST` |
 
-client.setServer(mqtt_server, mqtt_port);
-client.connect("ESP32_Farm_Device", mqtt_user, mqtt_password);
+4. **Add Headers** (click "Add" for each):
+
+| Header Key | Header Value |
+|------------|--------------|
+| `Content-Type` | `application/json` |
+| `apikey` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8` |
+
+5. **Body Template**:
+```json
+{"topic": "${topic}", "payload": "${payload}"}
+```
+
+6. Click **"Test Connection"** → should show success
+7. Click **"Save"**
+
+### 5.2 Create Rule
+
+1. Go to **"Data Integrations"** → **"Rules"**
+2. Click **"Create"**
+3. **SQL**:
+```sql
+SELECT * FROM "ladybug/#"
+```
+4. Under **Actions**, select your `supabase-ladybug` resource
+5. Click **"Create"**
+
+---
+
+## Step 6: Test Using WebSocket Client
+
+1. Go to **"Diagnose"** → **"WebSocket Client"**
+2. Configure connection:
+   - **Host**: Your cluster address (without `wss://`)
+   - **Port**: `8084`
+   - **Path**: `/mqtt`
+   - **SSL**: ✓ Enabled
+   - **Username**: `ladybug`
+   - **Password**: `Ladybug2025!`
+3. Click **"Connect"** (should show "Connected")
+
+### Send Test Messages
+
+Copy and send each message one by one:
+
+#### 🟢 Trap 011 - Safe (Green)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap011/status` |
+| **Payload** | `3,28,1` |
+
+*Meaning: 3 moths, 28°C, Status 1 (Safe)*
+
+---
+
+#### 🟡 Trap 012 - Moderate (Yellow)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap012/status` |
+| **Payload** | `12,31,2` |
+
+*Meaning: 12 moths, 31°C, Status 2 (Moderate)*
+
+---
+
+#### 🔴 Trap 013 - High Risk (Red)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap013/status` |
+| **Payload** | `25,35,3` |
+
+*Meaning: 25 moths, 35°C, Status 3 (High Risk)*
+
+---
+
+#### 🟢 Trap 014 - Safe (Green)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap014/status` |
+| **Payload** | `2,27,1` |
+
+---
+
+#### 🟡 Trap 015 - Moderate (Yellow)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap015/status` |
+| **Payload** | `8,29,2` |
+
+---
+
+#### 🔴 Trap 016 - High Risk (Red)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap016/status` |
+| **Payload** | `30,36,3` |
+
+---
+
+#### 🟢 Trap 017 - Safe (Green)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap017/status` |
+| **Payload** | `1,26,1` |
+
+---
+
+#### 🟡 Trap 018 - Moderate (Yellow)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap018/status` |
+| **Payload** | `10,30,2` |
+
+---
+
+#### 🔴 Trap 019 - High Risk (Red)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap019/status` |
+| **Payload** | `22,34,3` |
+
+---
+
+#### 🟢 Trap 020 - Safe (Green)
+| Field | Value |
+|-------|-------|
+| **Topic** | `ladybug/trap020/status` |
+| **Payload** | `4,28,1` |
+
+---
+
+## Alternative: Test via cURL (Direct Webhook)
+
+No EMQX needed - test the webhook directly:
+
+```bash
+# Trap 011 - Safe
+curl -X POST "https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-websocket" \
+  -H "Content-Type: application/json" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8" \
+  -d '{"topic": "ladybug/trap011/status", "payload": "5,28,1"}'
+
+# Trap 012 - Moderate
+curl -X POST "https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-websocket" \
+  -H "Content-Type: application/json" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8" \
+  -d '{"topic": "ladybug/trap012/status", "payload": "15,32,2"}'
+
+# Trap 013 - High Risk
+curl -X POST "https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-websocket" \
+  -H "Content-Type: application/json" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuY3VtbmJ4YXVjZHZqY25mcHRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5ODQwMDUsImV4cCI6MjA3ODU2MDAwNX0.bX9y8k0Jn_9g6GYs4d5supHdx_yntqrj0kAcvJ_Rdk8" \
+  -d '{"topic": "ladybug/trap013/status", "payload": "30,36,3"}'
 ```
 
 ---
 
-## Step 7: Test the Pipeline
+## Message Format Reference
 
-### Test with EMQX Websocket Client
+### Status Topic
+**Topic**: `ladybug/trap{n}/status`  
+**Format**: `moth_count,temperature,status`
 
-1. In EMQX Cloud Console, go to **"Tools"** → **"Websocket Client"**
-2. Click **"Connect"**
-3. Enter your credentials:
-   - Host: Your cluster address
-   - Port: `8084` (WebSocket port)
-   - Username: `ladybugdevice`
-   - Password: `@Ladybug2025`
-4. Click **"Connect"**
-5. Once connected, publish a test message:
-   - **Topic**: `LADYBUG/farm_data`
-   - **QoS**: `1`
-   - **Payload**:
-     ```json
-     {
-       "device_id": "TEST_EMQX_01",
-       "moth_count": 15,
-       "temperature_c": 27.5,
-       "computed_degree_days": 125.0,
-       "computed_status": "yellow_medium_risk"
-     }
-     ```
-6. Click **"Publish"**
+| Status Code | Alert Level | Color |
+|-------------|-------------|-------|
+| `1` | Safe | 🟢 Green |
+| `2` | Moderate | 🟡 Yellow |
+| `3` | High Risk | 🔴 Red |
 
-### Verify in Supabase
+**Example**: `5,28,1` = 5 moths, 28°C, Safe
 
-1. Open your Supabase Dashboard
-2. Go to **Database** → **Table Editor**
-3. Check the `pest_readings` table for the new test data
-4. Check **Edge Functions** → **mqtt-bridge** → **Logs** to see if the webhook was received
+### Location Topic
+**Topic**: `ladybug/trap{n}/location`  
+**Format**: `latitude,longitude`
+
+**Example**: `15.51848755,121.2739912`
 
 ---
 
-## Step 8: Monitor Data Flow
+## Verification Checklist
 
-### In EMQX Cloud:
-1. Go to **"Monitoring"** to see:
-   - Connected clients
-   - Message throughput
-   - Rule execution statistics
+After sending test messages:
 
-### In Supabase:
-1. Check **Edge Functions** → **mqtt-bridge** → **Logs**
-2. Check **Database** → **Table Editor** → `pest_readings`
+- [ ] Open LADYBUG dashboard
+- [ ] Go to **"Live Traps"** tab
+- [ ] Verify trap cards appear with correct:
+  - Moth count
+  - Temperature
+  - Status badge (Safe/Moderate/High Risk)
+  - Color-coded background
 
 ---
 
 ## Troubleshooting
 
-### Webhook Not Triggering
-- Verify the rule SQL matches your topic: `LADYBUG/farm_data`
-- Check that the HTTP Server action URL is correct
-- Look at **Data Integration** → **Rules** → Your Rule → **Metrics** for execution stats
-
-### Connection Issues
-- Ensure ESP32 is using port `8883` for TLS
-- Verify username/password in both ESP32 code and EMQX authentication
-- Check that ESP32 has internet connectivity
-
-### Data Not Appearing in Database
-- Check Supabase Edge Function logs for errors
-- Verify the `ingest-data` function is working
-- Check that the device_id exists in the `devices` table
+| Issue | Solution |
+|-------|----------|
+| Webhook fails | Check apikey header is correct |
+| No traps appear | Verify topic format: `ladybug/trap011/status` |
+| Wrong status | Check payload format: `count,temp,status` |
+| Connection refused | Enable SSL, use port 8084 |
 
 ---
 
-## Cost Considerations
+## Device ID Reference
 
-EMQX Serverless (Free Tier):
-- **1M session minutes/month** (plenty for testing and small deployments)
-- **1GB data transfer/month**
-- **No credit card required**
-
-For production at scale, consider upgrading to a paid plan.
-
----
-
-## Summary
-
-You now have a complete, free MQTT-to-Database pipeline:
-
-1. ✅ ESP32 devices publish to EMQX Cloud
-2. ✅ EMQX Cloud forwards via HTTP webhook to Supabase
-3. ✅ Supabase Edge Function processes and stores data
-4. ✅ Dashboard displays real-time farm status
-
-Your `mqtt-bridge` Edge Function is already configured correctly—no code changes needed!
+| Topic | Device ID |
+|-------|-----------|
+| `ladybug/trap011/status` | trap011 |
+| `ladybug/trap012/status` | trap012 |
+| `ladybug/trap013/status` | trap013 |
+| `ladybug/trap014/status` | trap014 |
+| `ladybug/trap015/status` | trap015 |
+| `ladybug/trap016/status` | trap016 |
+| `ladybug/trap017/status` | trap017 |
+| `ladybug/trap018/status` | trap018 |
+| `ladybug/trap019/status` | trap019 |
+| `ladybug/trap020/status` | trap020 |
