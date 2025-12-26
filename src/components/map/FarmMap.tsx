@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,9 @@ import Point from 'ol/geom/Point';
 import { fromLonLat } from 'ol/proj';
 import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
 import Overlay from 'ol/Overlay';
+import FarmListPanel from './FarmListPanel';
+import FarmFormDialog from './FarmFormDialog';
+import DeleteFarmDialog from './DeleteFarmDialog';
 
 interface Farm {
   id: string;
@@ -25,6 +28,7 @@ interface Farm {
   last_moth_count?: number;
   last_updated?: string;
   temperature?: number;
+  device_id?: string;
 }
 
 // Helper function to get marker color based on alert level
@@ -64,10 +68,61 @@ export default function FarmMap() {
   const popupRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<Overlay | null>(null);
 
+  // CRUD state
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+
+  const fetchFarms = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const { data: farmsData, error: farmsError } = await supabase
+        .from('farms')
+        .select('*');
+
+      if (farmsError) throw farmsError;
+
+      const { data: alertsData, error: alertsError } = await supabase
+        .from('ipm_alerts')
+        .select('*');
+
+      if (alertsError) throw alertsError;
+
+      // Fetch devices to get device_id for each farm
+      const { data: devicesData, error: devicesError } = await supabase
+        .from('devices')
+        .select('*');
+
+      if (devicesError) throw devicesError;
+
+      const farmsWithAlerts = (farmsData || []).map((farm) => {
+        const alert = alertsData?.find(a => a.farm_id === farm.id);
+        const device = devicesData?.find(d => d.farm_id === farm.id);
+        
+        return {
+          ...farm,
+          alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
+          last_moth_count: alert?.last_moth_count,
+          last_updated: alert?.last_updated,
+          temperature: alert?.last_temperature,
+          device_id: device?.id,
+        };
+      });
+
+      setFarms(farmsWithAlerts);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Error fetching farms:', err);
+      setError(err.message || 'Failed to load farm data');
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchFarms();
     
-    // Subscribe to realtime updates for both alerts and readings
+    // Subscribe to realtime updates
     const channel = supabase
       .channel('farm_map_realtime')
       .on(
@@ -77,8 +132,29 @@ export default function FarmMap() {
           schema: 'public',
           table: 'ipm_alerts'
         },
-        (payload) => {
-          console.log('Map: Real-time alert update:', payload);
+        () => {
+          fetchFarms();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'farms'
+        },
+        () => {
+          fetchFarms();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'devices'
+        },
+        () => {
           fetchFarms();
         }
       )
@@ -89,8 +165,7 @@ export default function FarmMap() {
           schema: 'public',
           table: 'pest_readings'
         },
-        (payload) => {
-          console.log('Map: New pest reading from MQTT:', payload);
+        () => {
           fetchFarms();
         }
       )
@@ -99,6 +174,17 @@ export default function FarmMap() {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [fetchFarms]);
+
+  const panToFarm = useCallback((farm: Farm) => {
+    if (mapInstanceRef.current) {
+      const view = mapInstanceRef.current.getView();
+      view.animate({
+        center: fromLonLat([farm.longitude, farm.latitude]),
+        zoom: 14,
+        duration: 500,
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -144,7 +230,7 @@ export default function FarmMap() {
           const properties = feature.getProperties();
           
           // Helper function to get status text
-          const getStatusText = (alertLevel) => {
+          const getStatusText = (alertLevel: string | undefined) => {
             switch (alertLevel) {
               case 'Red': return 'Critical';
               case 'Yellow': return 'Medium Risk';
@@ -161,6 +247,11 @@ export default function FarmMap() {
               </button>
               <h3 class="font-bold text-lg mb-2">${properties.farm_name}</h3>
               <div class="space-y-1 text-sm">
+                ${properties.device_id ? `
+                  <div>
+                    <span class="font-semibold">Device:</span> ${properties.device_id}
+                  </div>
+                ` : ''}
                 <div class="flex items-center gap-2">
                   <span class="font-semibold">Status:</span>
                   <span class="px-2 py-1 rounded text-white font-medium" style="background-color: ${getAlertColor(properties.alert_level)}">
@@ -211,6 +302,7 @@ export default function FarmMap() {
         last_moth_count: farm.last_moth_count,
         last_updated: farm.last_updated,
         temperature: farm.temperature,
+        device_id: farm.device_id,
       });
 
       const markerColor = getMarkerColor(farm.alert_level);
@@ -256,41 +348,32 @@ export default function FarmMap() {
     };
   }, [farms]);
 
-  const fetchFarms = async () => {
-    try {
-      setError(null);
-      
-      const { data: farmsData, error: farmsError } = await supabase
-        .from('farms')
-        .select('*');
+  // CRUD handlers
+  const handleAddFarm = () => {
+    setSelectedFarm(null);
+    setFormDialogOpen(true);
+  };
 
-      if (farmsError) throw farmsError;
+  const handleEditFarm = (farm: Farm) => {
+    setSelectedFarm(farm);
+    setFormDialogOpen(true);
+  };
 
-      const { data: alertsData, error: alertsError } = await supabase
-        .from('ipm_alerts')
-        .select('*');
+  const handleDeleteFarm = (farm: Farm) => {
+    setSelectedFarm(farm);
+    setDeleteDialogOpen(true);
+  };
 
-      if (alertsError) throw alertsError;
+  const handleSelectFarm = (farm: Farm) => {
+    panToFarm(farm);
+  };
 
-      const farmsWithAlerts = (farmsData || []).map((farm) => {
-        const alert = alertsData?.find(a => a.farm_id === farm.id);
-        
-        return {
-          ...farm,
-          alert_level: alert?.alert_level as 'Green' | 'Yellow' | 'Red' | undefined,
-          last_moth_count: alert?.last_moth_count,
-          last_updated: alert?.last_updated,
-          temperature: alert?.last_temperature,
-        };
-      });
+  const handleFormSuccess = () => {
+    fetchFarms();
+  };
 
-      setFarms(farmsWithAlerts);
-      setLoading(false);
-    } catch (err: any) {
-      console.error('Error fetching farms:', err);
-      setError(err.message || 'Failed to load farm data');
-      setLoading(false);
-    }
+  const handleDeleteSuccess = () => {
+    fetchFarms();
   };
 
   if (loading) {
@@ -330,46 +413,83 @@ export default function FarmMap() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-0 shadow-md">
-        <CardHeader className="pb-3">
-          <div>
-            <h3 className="text-xl font-semibold">Interactive Farm Map</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Real-time overview of pest alert levels across all monitored farms
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <div className="overflow-hidden relative">
-            <div 
-              ref={mapRef} 
-              style={{ height: '600px', width: '100%' }}
-              className="z-0"
-            />
-            <div 
-              ref={popupRef}
-              style={{ display: 'none' }}
-              className="absolute z-10"
-            />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Farm List Panel */}
+        <div className="lg:col-span-1">
+          <FarmListPanel
+            farms={farms}
+            onAddFarm={handleAddFarm}
+            onEditFarm={handleEditFarm}
+            onDeleteFarm={handleDeleteFarm}
+            onSelectFarm={handleSelectFarm}
+          />
+        </div>
 
-          {/* Legend */}
-          <div className="px-6 py-4 border-t bg-card flex justify-start gap-8 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-alert-green"></div>
-              <span className="text-muted-foreground">Low Risk</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-alert-yellow"></div>
-              <span className="text-muted-foreground">Medium Risk</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-alert-red"></div>
-              <span className="text-muted-foreground">High Risk</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Map */}
+        <div className="lg:col-span-3">
+          <Card className="border-0 shadow-md">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Interactive Farm Map</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Real-time overview of pest alert levels across all monitored farms
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchFarms} className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="overflow-hidden relative">
+                <div 
+                  ref={mapRef} 
+                  style={{ height: '600px', width: '100%' }}
+                  className="z-0"
+                />
+                <div 
+                  ref={popupRef}
+                  style={{ display: 'none' }}
+                  className="absolute z-10"
+                />
+              </div>
+
+              {/* Legend */}
+              <div className="px-6 py-4 border-t bg-card flex justify-start gap-8 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-alert-green"></div>
+                  <span className="text-muted-foreground">Low Risk</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-alert-yellow"></div>
+                  <span className="text-muted-foreground">Medium Risk</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-alert-red"></div>
+                  <span className="text-muted-foreground">High Risk</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* CRUD Dialogs */}
+      <FarmFormDialog
+        open={formDialogOpen}
+        onOpenChange={setFormDialogOpen}
+        farm={selectedFarm}
+        onSuccess={handleFormSuccess}
+      />
+      
+      <DeleteFarmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        farm={selectedFarm}
+        onSuccess={handleDeleteSuccess}
+      />
     </div>
   );
 }
