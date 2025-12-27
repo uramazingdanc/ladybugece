@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MapPin, Lock, LogOut } from 'lucide-react';
+import { Plus, Search, MapPin, Lock, LogOut, Pencil, Trash2 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import AdminLoginDialog from '@/components/auth/AdminLoginDialog';
 
@@ -22,6 +22,8 @@ interface FarmListPanelProps {
   farms: Farm[];
   onAddFarm: () => void;
   onSelectFarm: (farm: Farm) => void;
+  onEditFarm: (farm: Farm) => void;
+  onDeleteFarm: (farm: Farm) => void;
 }
 
 const getAlertBadgeVariant = (alertLevel?: string) => {
@@ -53,7 +55,9 @@ const getStatusLabel = (alertLevel?: string) => {
 export default function FarmListPanel({ 
   farms, 
   onAddFarm, 
-  onSelectFarm 
+  onSelectFarm,
+  onEditFarm,
+  onDeleteFarm
 }: FarmListPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
@@ -144,6 +148,32 @@ export default function FarmListPanel({
                           </div>
                         )}
                       </div>
+                      {isAuthenticated && (
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditFarm(farm);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteFarm(farm);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

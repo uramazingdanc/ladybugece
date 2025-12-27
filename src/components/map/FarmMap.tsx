@@ -17,6 +17,7 @@ import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
 import Overlay from 'ol/Overlay';
 import FarmListPanel from './FarmListPanel';
 import FarmFormDialog from './FarmFormDialog';
+import DeleteFarmDialog from './DeleteFarmDialog';
 
 interface Farm {
   id: string;
@@ -67,8 +68,9 @@ export default function FarmMap() {
   const popupRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<Overlay | null>(null);
 
-  // Form dialog state
+  // Dialog states
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
 
   const fetchFarms = useCallback(async () => {
@@ -352,6 +354,16 @@ export default function FarmMap() {
     setFormDialogOpen(true);
   };
 
+  const handleEditFarm = (farm: Farm) => {
+    setSelectedFarm(farm);
+    setFormDialogOpen(true);
+  };
+
+  const handleDeleteFarm = (farm: Farm) => {
+    setSelectedFarm(farm);
+    setDeleteDialogOpen(true);
+  };
+
   const handleSelectFarm = (farm: Farm) => {
     panToFarm(farm);
   };
@@ -404,6 +416,8 @@ export default function FarmMap() {
             farms={farms}
             onAddFarm={handleAddFarm}
             onSelectFarm={handleSelectFarm}
+            onEditFarm={handleEditFarm}
+            onDeleteFarm={handleDeleteFarm}
           />
         </div>
 
@@ -462,6 +476,14 @@ export default function FarmMap() {
       <FarmFormDialog
         open={formDialogOpen}
         onOpenChange={setFormDialogOpen}
+        farm={selectedFarm}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteFarmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
         farm={selectedFarm}
         onSuccess={handleFormSuccess}
       />
