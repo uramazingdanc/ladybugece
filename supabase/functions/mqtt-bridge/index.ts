@@ -6,23 +6,14 @@ const corsHeaders = {
 };
 
 /**
- * MQTT Bridge - HiveMQ Cloud HTTP Webhook Receiver
+ * MQTT Bridge - EMQX Cloud HTTP Webhook Receiver
  * 
- * This function receives HTTP POST requests from HiveMQ Cloud's HTTP Extension.
- * HiveMQ forwards MQTT messages as HTTP requests, eliminating the need for an MQTT client.
+ * This function receives HTTP POST requests from EMQX Cloud's webhook.
+ * Handles two topic types:
+ * - ladybug/trap{n}/status - CSV format: moth_count,temperature,status_code
+ * - ladybug/trap{n}/location - CSV format: latitude,longitude
  * 
- * Architecture: ESP Devices → HiveMQ Cloud → HTTP Extension → Supabase Edge Function → Supabase DB
- * 
- * Expected payload format from HiveMQ HTTP Extension:
- * {
- *   "device_id": "ESP_FARM_001",
- *   "moth_count": 12,
- *   "temperature_c": 28,
- *   "computed_degree_days": 152.5,
- *   "computed_status": "yellow_medium_risk"
- * }
- * 
- * MQTT Topic: LADYBUG/farm_data
+ * Architecture: ESP Devices → EMQX Cloud → HTTP Webhook → Supabase Edge Function → Supabase DB
  */
 
 // Initialize Supabase client
@@ -30,79 +21,251 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Status code to alert level mapping
+function statusCodeToAlertLevel(statusCode: number): 'Green' | 'Yellow' | 'Red' {
+  switch (statusCode) {
+    case 1: return 'Green';  // Safe
+    case 2: return 'Yellow'; // Moderate
+    case 3: return 'Red';    // High Risk
+    default: return 'Green';
+  }
+}
+
+// Parse topic to extract device_id and message type
+function parseTopic(topic: string): { device_id: string; messageType: 'status' | 'location' } | null {
+  // Expected format: ladybug/trap1/status or ladybug/trap1/location
+  const parts = topic.toLowerCase().split('/');
+  
+  if (parts.length !== 3 || parts[0] !== 'ladybug') {
+    console.error('Invalid topic format:', topic);
+    return null;
+  }
+  
+  const device_id = parts[1]; // e.g., "trap1"
+  const messageType = parts[2] as 'status' | 'location';
+  
+  if (messageType !== 'status' && messageType !== 'location') {
+    console.error('Unknown message type:', messageType);
+    return null;
+  }
+  
+  return { device_id, messageType };
+}
+
+// Parse status CSV payload: moth_count,temperature,status_code
+function parseStatusPayload(payload: string): { moth_count: number; temperature: number; status: number } | null {
+  const parts = payload.trim().split(',');
+  
+  if (parts.length !== 3) {
+    console.error('Invalid status payload format:', payload);
+    return null;
+  }
+  
+  const moth_count = parseInt(parts[0], 10);
+  const temperature = parseFloat(parts[1]);
+  const status = parseInt(parts[2], 10);
+  
+  if (isNaN(moth_count) || isNaN(temperature) || isNaN(status)) {
+    console.error('Invalid numeric values in status payload:', payload);
+    return null;
+  }
+  
+  return { moth_count, temperature, status };
+}
+
+// Parse location CSV payload: latitude,longitude
+function parseLocationPayload(payload: string): { latitude: number; longitude: number } | null {
+  const parts = payload.trim().split(',');
+  
+  if (parts.length !== 2) {
+    console.error('Invalid location payload format:', payload);
+    return null;
+  }
+  
+  const latitude = parseFloat(parts[0]);
+  const longitude = parseFloat(parts[1]);
+  
+  if (isNaN(latitude) || isNaN(longitude)) {
+    console.error('Invalid numeric values in location payload:', payload);
+    return null;
+  }
+  
+  return { latitude, longitude };
+}
+
+// Handle status message - forward to ingest-data
+async function handleStatusMessage(device_id: string, data: { moth_count: number; temperature: number; status: number }) {
+  const alert_level = statusCodeToAlertLevel(data.status);
+  
+  console.log(`Processing status for ${device_id}: moths=${data.moth_count}, temp=${data.temperature}, status=${data.status} -> ${alert_level}`);
+  
+  const { data: response, error } = await supabase.functions.invoke('ingest-data', {
+    body: {
+      device_id,
+      moth_count: data.moth_count,
+      temperature: data.temperature,
+      alert_level
+    }
+  });
+  
+  if (error) {
+    console.error('Error calling ingest-data:', error);
+    return { success: false, error };
+  }
+  
+  console.log('Status data ingested successfully:', response);
+  return { success: true, data: response };
+}
+
+// Handle location message - update farm coordinates
+async function handleLocationMessage(device_id: string, location: { latitude: number; longitude: number }) {
+  console.log(`Processing location for ${device_id}: lat=${location.latitude}, lng=${location.longitude}`);
+  
+  // Find the device and its associated farm
+  const { data: device, error: deviceError } = await supabase
+    .from('devices')
+    .select('farm_id')
+    .eq('id', device_id)
+    .maybeSingle();
+  
+  if (deviceError) {
+    console.error('Error finding device:', deviceError);
+    return { success: false, error: deviceError };
+  }
+  
+  if (!device) {
+    console.log(`Device ${device_id} not found, skipping location update`);
+    return { success: false, error: 'Device not found' };
+  }
+  
+  // Update the farm's coordinates
+  const { error: updateError } = await supabase
+    .from('farms')
+    .update({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', device.farm_id);
+  
+  if (updateError) {
+    console.error('Error updating farm location:', updateError);
+    return { success: false, error: updateError };
+  }
+  
+  console.log(`Farm location updated for device ${device_id}`);
+  return { success: true };
+}
+
+// Process incoming EMQX webhook message
 async function processMessage(payload: any) {
   try {
-    const { 
-      device_id, 
-      moth_count, 
-      temperature_c, 
-      temperature,
-      computed_degree_days, 
-      degree_days,
-      computed_status 
-    } = payload;
-
-    console.log('Processing MQTT message from HiveMQ webhook:', payload);
-
-    // Map computed_status to alert_level (Green/Yellow/Red)
-    let alert_level = null;
-    if (computed_status) {
-      const statusLower = computed_status.toLowerCase();
-      if (statusLower.includes('red')) {
-        alert_level = 'Red';
-      } else if (statusLower.includes('yellow')) {
-        alert_level = 'Yellow';
-      } else if (statusLower.includes('green')) {
-        alert_level = 'Green';
+    const { topic, payload: messagePayload } = payload;
+    
+    // Handle legacy JSON format (backward compatibility)
+    if (!topic && payload.device_id) {
+      console.log('Processing legacy JSON format');
+      return handleLegacyMessage(payload);
+    }
+    
+    if (!topic || messagePayload === undefined) {
+      console.error('Missing topic or payload in webhook data:', payload);
+      return { success: false, error: 'Missing topic or payload' };
+    }
+    
+    console.log(`Received MQTT message - Topic: ${topic}, Payload: ${messagePayload}`);
+    
+    // Parse topic
+    const topicInfo = parseTopic(topic);
+    if (!topicInfo) {
+      return { success: false, error: 'Invalid topic format' };
+    }
+    
+    const { device_id, messageType } = topicInfo;
+    
+    // Process based on message type
+    if (messageType === 'status') {
+      const statusData = parseStatusPayload(messagePayload);
+      if (!statusData) {
+        return { success: false, error: 'Invalid status payload format' };
       }
-      console.log(`Mapped computed_status "${computed_status}" to alert_level "${alert_level}"`);
-    }
-
-    // Use either new field names or legacy field names for backward compatibility
-    const temp = temperature_c || temperature || 0;
-    const degDays = computed_degree_days || degree_days;
-
-    // Validate required fields
-    if (!device_id) {
-      console.error('Missing device_id');
-      return { success: false, error: 'Missing device_id' };
-    }
-
-    // Forward to ingest-data function
-    const { data: ingestResponse, error: ingestError } = await supabase.functions.invoke('ingest-data', {
-      body: {
-        device_id,
-        moth_count: moth_count || 0,
-        temperature: temp,
-        degree_days: degDays,
-        alert_level: alert_level
+      return handleStatusMessage(device_id, statusData);
+    } else if (messageType === 'location') {
+      const locationData = parseLocationPayload(messagePayload);
+      if (!locationData) {
+        return { success: false, error: 'Invalid location payload format' };
       }
-    });
-
-    if (ingestError) {
-      console.error('Error calling ingest-data:', ingestError);
-      return { success: false, error: ingestError };
-    } else {
-      console.log('MQTT data processed successfully:', ingestResponse);
-      return { success: true, data: ingestResponse };
+      return handleLocationMessage(device_id, locationData);
     }
+    
+    return { success: false, error: 'Unknown message type' };
   } catch (error) {
     console.error('Error processing message:', error);
     return { success: false, error: String(error) };
   }
 }
 
+// Handle legacy JSON format for backward compatibility
+async function handleLegacyMessage(payload: any) {
+  const { 
+    device_id, 
+    moth_count, 
+    temperature_c, 
+    temperature,
+    computed_degree_days, 
+    degree_days,
+    computed_status 
+  } = payload;
+
+  console.log('Processing legacy MQTT message:', payload);
+
+  let alert_level = null;
+  if (computed_status) {
+    const statusLower = computed_status.toLowerCase();
+    if (statusLower.includes('red')) {
+      alert_level = 'Red';
+    } else if (statusLower.includes('yellow')) {
+      alert_level = 'Yellow';
+    } else if (statusLower.includes('green')) {
+      alert_level = 'Green';
+    }
+  }
+
+  const temp = temperature_c || temperature || 0;
+  const degDays = computed_degree_days || degree_days;
+
+  if (!device_id) {
+    return { success: false, error: 'Missing device_id' };
+  }
+
+  const { data: response, error } = await supabase.functions.invoke('ingest-data', {
+    body: {
+      device_id,
+      moth_count: moth_count || 0,
+      temperature: temp,
+      degree_days: degDays,
+      alert_level
+    }
+  });
+
+  if (error) {
+    console.error('Error calling ingest-data:', error);
+    return { success: false, error };
+  }
+
+  console.log('Legacy data processed successfully:', response);
+  return { success: true, data: response };
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Parse the incoming JSON payload from HiveMQ HTTP Extension
     const payload = await req.json();
+    console.log('Received webhook payload:', JSON.stringify(payload));
     
-    // Process the message
     const result = await processMessage(payload);
 
     return new Response(
