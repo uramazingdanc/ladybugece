@@ -17,7 +17,6 @@ import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
 import Overlay from 'ol/Overlay';
 import FarmListPanel from './FarmListPanel';
 import FarmFormDialog from './FarmFormDialog';
-import DeleteFarmDialog from './DeleteFarmDialog';
 
 interface Farm {
   id: string;
@@ -68,9 +67,8 @@ export default function FarmMap() {
   const popupRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<Overlay | null>(null);
 
-  // CRUD state
+  // Form dialog state
   const [formDialogOpen, setFormDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
 
   const fetchFarms = useCallback(async () => {
@@ -354,25 +352,11 @@ export default function FarmMap() {
     setFormDialogOpen(true);
   };
 
-  const handleEditFarm = (farm: Farm) => {
-    setSelectedFarm(farm);
-    setFormDialogOpen(true);
-  };
-
-  const handleDeleteFarm = (farm: Farm) => {
-    setSelectedFarm(farm);
-    setDeleteDialogOpen(true);
-  };
-
   const handleSelectFarm = (farm: Farm) => {
     panToFarm(farm);
   };
 
   const handleFormSuccess = () => {
-    fetchFarms();
-  };
-
-  const handleDeleteSuccess = () => {
     fetchFarms();
   };
 
@@ -419,8 +403,6 @@ export default function FarmMap() {
           <FarmListPanel
             farms={farms}
             onAddFarm={handleAddFarm}
-            onEditFarm={handleEditFarm}
-            onDeleteFarm={handleDeleteFarm}
             onSelectFarm={handleSelectFarm}
           />
         </div>
@@ -476,19 +458,12 @@ export default function FarmMap() {
         </div>
       </div>
 
-      {/* CRUD Dialogs */}
+      {/* Farm Form Dialog */}
       <FarmFormDialog
         open={formDialogOpen}
         onOpenChange={setFormDialogOpen}
         farm={selectedFarm}
         onSuccess={handleFormSuccess}
-      />
-      
-      <DeleteFarmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        farm={selectedFarm}
-        onSuccess={handleDeleteSuccess}
       />
     </div>
   );
