@@ -6,15 +6,37 @@ const corsHeaders = {
 };
 
 /**
- * MQTT Bridge - EMQX Cloud HTTP Webhook Receiver
+ * MQTT Bridge - Multi-Source HTTP Receiver
  * 
- * This function receives HTTP POST requests from EMQX Cloud's webhook.
+ * This function receives HTTP POST requests from:
+ * 1. EMQX Cloud's webhook
+ * 2. Mosquitto bridge script (for SIM800 devices via test.mosquitto.org)
+ * 3. Any HTTP client sending the expected JSON format
+ * 
  * Handles two topic types:
  * - ladybug/trap{n}/status - CSV format: moth_count,temperature,status_code
  * - ladybug/trap{n}/location - CSV format: latitude,longitude
  * 
- * Architecture: ESP Devices → EMQX Cloud → HTTP Webhook → Supabase Edge Function → Supabase DB
+ * Architecture Options:
+ * A) ESP Devices → EMQX Cloud → HTTP Webhook → This Function → Database
+ * B) SIM800 → test.mosquitto.org → Bridge Script → This Function → Database
  */
+
+// Request logging helper
+function logRequest(source: string, data: any) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${source}] Request received:`, JSON.stringify(data));
+}
+
+function logSuccess(source: string, message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${source}] ✓ ${message}`, data ? JSON.stringify(data) : '');
+}
+
+function logError(source: string, message: string, error?: any) {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] [${source}] ✗ ${message}`, error ? JSON.stringify(error) : '');
+}
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -37,7 +59,7 @@ function parseTopic(topic: string): { device_id: string; messageType: 'status' |
   const parts = topic.toLowerCase().split('/');
   
   if (parts.length !== 3 || parts[0] !== 'ladybug') {
-    console.error('Invalid topic format:', topic);
+    logError('PARSER', `Invalid topic format: ${topic}`, { expected: 'ladybug/{device_id}/status or location' });
     return null;
   }
   
@@ -45,7 +67,7 @@ function parseTopic(topic: string): { device_id: string; messageType: 'status' |
   const messageType = parts[2] as 'status' | 'location';
   
   if (messageType !== 'status' && messageType !== 'location') {
-    console.error('Unknown message type:', messageType);
+    logError('PARSER', `Unknown message type: ${messageType}`, { validTypes: ['status', 'location'] });
     return null;
   }
   
@@ -97,7 +119,12 @@ function parseLocationPayload(payload: string): { latitude: number; longitude: n
 async function handleStatusMessage(device_id: string, data: { moth_count: number; temperature: number; status: number }) {
   const alert_level = statusCodeToAlertLevel(data.status);
   
-  console.log(`Processing status for ${device_id}: moths=${data.moth_count}, temp=${data.temperature}, status=${data.status} -> ${alert_level}`);
+  logSuccess('STATUS', `Processing for ${device_id}`, { 
+    moths: data.moth_count, 
+    temp: data.temperature, 
+    status: data.status, 
+    alertLevel: alert_level 
+  });
   
   const { data: response, error } = await supabase.functions.invoke('ingest-data', {
     body: {
@@ -109,17 +136,17 @@ async function handleStatusMessage(device_id: string, data: { moth_count: number
   });
   
   if (error) {
-    console.error('Error calling ingest-data:', error);
+    logError('STATUS', `Failed to call ingest-data for ${device_id}`, error);
     return { success: false, error };
   }
   
-  console.log('Status data ingested successfully:', response);
+  logSuccess('STATUS', `Data ingested for ${device_id}`, response);
   return { success: true, data: response };
 }
 
 // Handle location message - update farm coordinates
 async function handleLocationMessage(device_id: string, location: { latitude: number; longitude: number }) {
-  console.log(`Processing location for ${device_id}: lat=${location.latitude}, lng=${location.longitude}`);
+  logSuccess('LOCATION', `Processing for ${device_id}`, { lat: location.latitude, lng: location.longitude });
   
   // Find the device and its associated farm
   const { data: device, error: deviceError } = await supabase
@@ -129,12 +156,12 @@ async function handleLocationMessage(device_id: string, location: { latitude: nu
     .maybeSingle();
   
   if (deviceError) {
-    console.error('Error finding device:', deviceError);
+    logError('LOCATION', `Failed to find device ${device_id}`, deviceError);
     return { success: false, error: deviceError };
   }
   
   if (!device) {
-    console.log(`Device ${device_id} not found, skipping location update`);
+    logError('LOCATION', `Device ${device_id} not found in database`, { suggestion: 'Register the device first' });
     return { success: false, error: 'Device not found' };
   }
   
@@ -149,31 +176,31 @@ async function handleLocationMessage(device_id: string, location: { latitude: nu
     .eq('id', device.farm_id);
   
   if (updateError) {
-    console.error('Error updating farm location:', updateError);
+    logError('LOCATION', `Failed to update farm location for ${device_id}`, updateError);
     return { success: false, error: updateError };
   }
   
-  console.log(`Farm location updated for device ${device_id}`);
+  logSuccess('LOCATION', `Farm location updated for device ${device_id}`, { farmId: device.farm_id });
   return { success: true };
 }
 
-// Process incoming EMQX webhook message
-async function processMessage(payload: any) {
+// Process incoming webhook/bridge message
+async function processMessage(payload: any, source: string = 'WEBHOOK') {
   try {
     const { topic, payload: messagePayload } = payload;
     
     // Handle legacy JSON format (backward compatibility)
     if (!topic && payload.device_id) {
-      console.log('Processing legacy JSON format');
+      logRequest(`${source}/LEGACY`, payload);
       return handleLegacyMessage(payload);
     }
     
     if (!topic || messagePayload === undefined) {
-      console.error('Missing topic or payload in webhook data:', payload);
+      logError(source, 'Missing topic or payload', payload);
       return { success: false, error: 'Missing topic or payload' };
     }
     
-    console.log(`Received MQTT message - Topic: ${topic}, Payload: ${messagePayload}`);
+    logRequest(source, { topic, payload: messagePayload });
     
     // Parse topic
     const topicInfo = parseTopic(topic);
@@ -182,6 +209,7 @@ async function processMessage(payload: any) {
     }
     
     const { device_id, messageType } = topicInfo;
+    logSuccess(source, `Parsed: device=${device_id}, type=${messageType}`);
     
     // Process based on message type
     if (messageType === 'status') {
@@ -200,7 +228,7 @@ async function processMessage(payload: any) {
     
     return { success: false, error: 'Unknown message type' };
   } catch (error) {
-    console.error('Error processing message:', error);
+    logError(source, 'Error processing message', error);
     return { success: false, error: String(error) };
   }
 }
@@ -217,7 +245,7 @@ async function handleLegacyMessage(payload: any) {
     computed_status 
   } = payload;
 
-  console.log('Processing legacy MQTT message:', payload);
+  logSuccess('LEGACY', `Processing for ${device_id}`, payload);
 
   let alert_level = null;
   if (computed_status) {
@@ -235,6 +263,7 @@ async function handleLegacyMessage(payload: any) {
   const degDays = computed_degree_days || degree_days;
 
   if (!device_id) {
+    logError('LEGACY', 'Missing device_id in payload');
     return { success: false, error: 'Missing device_id' };
   }
 
@@ -249,11 +278,11 @@ async function handleLegacyMessage(payload: any) {
   });
 
   if (error) {
-    console.error('Error calling ingest-data:', error);
+    logError('LEGACY', `Failed to call ingest-data for ${device_id}`, error);
     return { success: false, error };
   }
 
-  console.log('Legacy data processed successfully:', response);
+  logSuccess('LEGACY', `Data ingested for ${device_id}`, response);
   return { success: true, data: response };
 }
 
@@ -262,11 +291,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Determine source from headers or user-agent
+  const userAgent = req.headers.get('user-agent') || '';
+  const source = userAgent.includes('python') ? 'MOSQUITTO-BRIDGE' : 
+                 userAgent.includes('curl') ? 'CURL-TEST' : 
+                 'WEBHOOK';
+
   try {
     const payload = await req.json();
-    console.log('Received webhook payload:', JSON.stringify(payload));
+    logRequest(source, payload);
     
-    const result = await processMessage(payload);
+    const result = await processMessage(payload, source);
 
     return new Response(
       JSON.stringify(result),
@@ -276,7 +311,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in mqtt-bridge handler:', error);
+    logError(source, 'Handler error', error);
     return new Response(
       JSON.stringify({ 
         success: false,
