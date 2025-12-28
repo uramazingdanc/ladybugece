@@ -1,6 +1,8 @@
-# Mosquitto Bridge Setup for SIM800 GSM Module
+# HiveMQ Public Broker Setup for SIM800 GSM Module
 
-This guide explains how to connect SIM800 GSM modules to the LADYBUG system using `test.mosquitto.org` as an intermediary broker.
+> **Note**: This guide uses HiveMQ's public broker (`broker.hivemq.com`) which has better reliability than `test.mosquitto.org` for prototyping.
+
+This guide explains how to connect SIM800 GSM modules to the LADYBUG system using `broker.hivemq.com` as an intermediary broker.
 
 ## Why This Approach?
 
@@ -13,7 +15,7 @@ SIM800 GSM Module
        ↓
        ↓ (Plain TCP, Port 1883)
        ↓
-test.mosquitto.org
+broker.hivemq.com (HiveMQ Public Broker)
        ↓
        ↓ (MQTT Subscribe)
        ↓
@@ -31,10 +33,11 @@ Database (pest_readings, ipm_alerts)
 
 ### 1. Public MQTT Broker
 
-- **Broker**: `test.mosquitto.org`
+- **Broker**: `broker.hivemq.com`
 - **Port**: 1883 (plain TCP, no TLS)
 - **Authentication**: None required (public broker)
-- **Note**: This is for development/testing. For production, consider self-hosted Mosquitto.
+- **Reliability**: Better uptime than test.mosquitto.org
+- **Note**: This is for development/prototyping. For production, consider self-hosted Mosquitto.
 
 ### 2. Topic Format
 
@@ -61,13 +64,13 @@ Payload: 14.5995,120.9842
 
 ### Step 1: Create the Python Bridge Script
 
-Create a file called `mosquitto_bridge.py`:
+Create a file called `hivemq_bridge.py`:
 
 ```python
 #!/usr/bin/env python3
 """
-Mosquitto Bridge for LADYBUG System
-Forwards MQTT messages from test.mosquitto.org to Supabase Edge Function
+HiveMQ Bridge for LADYBUG System
+Forwards MQTT messages from broker.hivemq.com to Supabase Edge Function
 """
 
 import paho.mqtt.client as mqtt
@@ -80,9 +83,9 @@ from datetime import datetime
 # CONFIGURATION - Update these values!
 # =============================================================================
 
-# Mosquitto broker settings (no changes needed for test.mosquitto.org)
-MOSQUITTO_BROKER = "test.mosquitto.org"
-MOSQUITTO_PORT = 1883
+# HiveMQ public broker settings
+HIVEMQ_BROKER = "broker.hivemq.com"
+HIVEMQ_PORT = 1883
 
 # Supabase Edge Function URL
 SUPABASE_FUNCTION_URL = "https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge"
@@ -103,7 +106,7 @@ TOPICS = [
 def on_connect(client, userdata, flags, rc):
     """Called when connected to MQTT broker"""
     if rc == 0:
-        print(f"[{datetime.now()}] ✓ Connected to {MOSQUITTO_BROKER}:{MOSQUITTO_PORT}")
+        print(f"[{datetime.now()}] ✓ Connected to {HIVEMQ_BROKER}:{HIVEMQ_PORT}")
         # Subscribe to all topics
         for topic, qos in TOPICS:
             client.subscribe(topic, qos)
@@ -170,9 +173,9 @@ def forward_to_supabase(topic: str, payload: str):
 
 def main():
     print("=" * 60)
-    print("LADYBUG Mosquitto Bridge")
+    print("LADYBUG HiveMQ Bridge")
     print("=" * 60)
-    print(f"Broker: {MOSQUITTO_BROKER}:{MOSQUITTO_PORT}")
+    print(f"Broker: {HIVEMQ_BROKER}:{HIVEMQ_PORT}")
     print(f"Supabase URL: {SUPABASE_FUNCTION_URL}")
     print("=" * 60)
     
@@ -185,10 +188,10 @@ def main():
     client.on_message = on_message
     
     # Connect to broker
-    print(f"\n[{datetime.now()}] Connecting to {MOSQUITTO_BROKER}...")
+    print(f"\n[{datetime.now()}] Connecting to {HIVEMQ_BROKER}...")
     
     try:
-        client.connect(MOSQUITTO_BROKER, MOSQUITTO_PORT, keepalive=60)
+        client.connect(HIVEMQ_BROKER, HIVEMQ_PORT, keepalive=60)
         
         # Start the loop
         print(f"[{datetime.now()}] Starting MQTT loop (Ctrl+C to stop)...")
@@ -213,20 +216,20 @@ pip install paho-mqtt requests
 ### Step 3: Run the Bridge Script
 
 ```bash
-python mosquitto_bridge.py
+python hivemq_bridge.py
 ```
 
 You should see:
 ```
 ============================================================
-LADYBUG Mosquitto Bridge
+LADYBUG HiveMQ Bridge
 ============================================================
-Broker: test.mosquitto.org:1883
+Broker: broker.hivemq.com:1883
 Supabase URL: https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge
 ============================================================
 
-[2024-01-15 10:30:00] Connecting to test.mosquitto.org...
-[2024-01-15 10:30:01] ✓ Connected to test.mosquitto.org:1883
+[2024-01-15 10:30:00] Connecting to broker.hivemq.com...
+[2024-01-15 10:30:01] ✓ Connected to broker.hivemq.com:1883
 [2024-01-15 10:30:01] ✓ Subscribed to: ladybug/+/status
 [2024-01-15 10:30:01] ✓ Subscribed to: ladybug/+/location
 [2024-01-15 10:30:01] Starting MQTT loop (Ctrl+C to stop)...
@@ -237,8 +240,8 @@ Supabase URL: https://hncumnbxaucdvjcnfptq.supabase.co/functions/v1/mqtt-bridge
 ### Connection Settings
 
 ```cpp
-// SIM800 MQTT Configuration
-#define MQTT_BROKER     "test.mosquitto.org"
+// SIM800 MQTT Configuration for HiveMQ
+#define MQTT_BROKER     "broker.hivemq.com"
 #define MQTT_PORT       1883
 #define MQTT_CLIENT_ID  "trap1"  // Unique per device!
 
@@ -310,12 +313,13 @@ void publishLocation(float lat, float lng) {
 
 ### 1. Test with MQTT Explorer
 
-1. Connect to `test.mosquitto.org:1883` (no TLS)
-2. Publish a test message:
+1. Download [MQTT Explorer](http://mqtt-explorer.com/)
+2. Connect to `broker.hivemq.com:1883` (no TLS, no authentication)
+3. Publish a test message:
    - Topic: `ladybug/trap1/status`
    - Payload: `5,28.5,1`
-3. Watch the bridge script console for the forwarded message
-4. Check the database for the new reading
+4. Watch the bridge script console for the forwarded message
+5. Check the database for the new reading
 
 ### 2. Verify in Database
 
@@ -333,14 +337,14 @@ Check if the reading was inserted:
 ```ini
 # /etc/systemd/system/ladybug-bridge.service
 [Unit]
-Description=LADYBUG Mosquitto Bridge
+Description=LADYBUG HiveMQ Bridge
 After=network.target
 
 [Service]
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/ladybug
-ExecStart=/usr/bin/python3 /home/pi/ladybug/mosquitto_bridge.py
+ExecStart=/usr/bin/python3 /home/pi/ladybug/hivemq_bridge.py
 Restart=always
 RestartSec=10
 
@@ -394,7 +398,7 @@ View logs in the Lovable dashboard:
 
 ## Security Considerations
 
-⚠️ **Important**: `test.mosquitto.org` is a PUBLIC broker:
+⚠️ **Important**: `broker.hivemq.com` is a PUBLIC broker:
 - Anyone can subscribe to your topics
 - Anyone can publish to your topics
 - Do NOT send sensitive data
@@ -404,11 +408,21 @@ For production, consider:
 2. **Topic prefixing** with a unique project ID: `ladybug-{random}/trap1/status`
 3. **VPN** between your devices and the broker
 
+## HiveMQ vs test.mosquitto.org
+
+| Feature | HiveMQ | test.mosquitto.org |
+|---------|--------|-------------------|
+| Reliability | ✅ Better uptime | ⚠️ Sometimes down |
+| Speed | ✅ Faster | ⚠️ Can be slow |
+| Plain TCP (1883) | ✅ Supported | ✅ Supported |
+| Cost | Free | Free |
+| Purpose | Testing/Proto | Testing only |
+
 ## Quick Reference
 
 | Component | Value |
 |-----------|-------|
-| Broker | `test.mosquitto.org` |
+| Broker | `broker.hivemq.com` |
 | Port | `1883` |
 | Protocol | Plain TCP (no TLS) |
 | Status Topic | `ladybug/{device_id}/status` |
