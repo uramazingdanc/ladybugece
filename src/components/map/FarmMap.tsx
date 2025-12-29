@@ -148,6 +148,26 @@ export default function FarmMap() {
     }
   }, []);
 
+  // Merge live MQTT data with farm data - prioritize live data over database
+  const farmsWithLiveData = farms.map((farm) => {
+    // Check if we have live MQTT data for this farm's device
+    const liveMqttData = farm.device_id ? mqttTraps[farm.device_id] : null;
+    
+    if (liveMqttData && liveMqttData.moth_count !== undefined) {
+      // Use live MQTT data instead of stale database data
+      return {
+        ...farm,
+        alert_level: statusToAlertLevel(liveMqttData.status),
+        last_moth_count: liveMqttData.moth_count,
+        temperature: liveMqttData.temperature,
+        last_updated: liveMqttData.last_updated,
+        hasLiveData: true,
+      };
+    }
+    
+    return { ...farm, hasLiveData: false };
+  });
+
   useEffect(() => {
     fetchFarms();
     
@@ -264,14 +284,15 @@ export default function FarmMap() {
           // Helper function to get status text
           const getStatusText = (alertLevel: string | undefined) => {
             switch (alertLevel) {
-              case 'Red': return 'Critical';
-              case 'Yellow': return 'Medium Risk';
-              case 'Green': return 'Low Risk';
+              case 'Red': return 'High Risk';
+              case 'Yellow': return 'Moderate';
+              case 'Green': return 'Safe';
               default: return 'Unknown';
             }
           };
           
           const isLiveTrap = properties.is_live_trap;
+          const hasLiveData = properties.has_live_data;
           const title = isLiveTrap ? `🔴 Live Trap: ${properties.trap_id}` : properties.farm_name;
           
           // Update popup content
@@ -281,7 +302,7 @@ export default function FarmMap() {
                 ✕
               </button>
               <h3 class="font-bold text-lg mb-2">${title}</h3>
-              ${isLiveTrap ? '<div class="text-xs text-primary mb-2 flex items-center gap-1"><span class="animate-pulse">●</span> MQTT Live Data</div>' : ''}
+              ${isLiveTrap || hasLiveData ? '<div class="text-xs text-green-500 mb-2 flex items-center gap-1"><span class="animate-pulse">●</span> MQTT Live Data</div>' : ''}
               <div class="space-y-1 text-sm">
                 ${properties.device_id ? `
                   <div>
@@ -327,11 +348,11 @@ export default function FarmMap() {
       });
     }
 
-    // Update markers - combine farms and live traps
+    // Update markers - combine farms (with live data merged) and live traps
     const vectorSource = new VectorSource();
     
-    // Add farm markers (circles)
-    farms.forEach((farm) => {
+    // Add farm markers (circles) - using farmsWithLiveData which has MQTT data merged
+    farmsWithLiveData.forEach((farm) => {
       const feature = new Feature({
         geometry: new Point(fromLonLat([farm.longitude, farm.latitude])),
         farm_name: farm.farm_name,
@@ -341,6 +362,7 @@ export default function FarmMap() {
         temperature: farm.temperature,
         device_id: farm.device_id,
         is_live_trap: false,
+        has_live_data: farm.hasLiveData,
       });
 
       const markerColor = getMarkerColor(farm.alert_level);
@@ -353,8 +375,8 @@ export default function FarmMap() {
               color: markerColor,
             }),
             stroke: new Stroke({
-              color: '#ffffff',
-              width: 3,
+              color: farm.hasLiveData ? '#00ff00' : '#ffffff', // Green border for live data
+              width: farm.hasLiveData ? 4 : 3,
             }),
           }),
         })
@@ -419,7 +441,7 @@ export default function FarmMap() {
         mapInstanceRef.current = null;
       }
     };
-  }, [farms, liveTraps, loading]);
+  }, [farms, farmsWithLiveData, liveTraps, loading, mqttTraps]);
 
   // CRUD handlers
   const handleAddFarm = () => {
