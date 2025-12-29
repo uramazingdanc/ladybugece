@@ -508,7 +508,7 @@ export default function FarmMap() {
         {/* Farm List Panel */}
         <div className="lg:col-span-1">
           <FarmListPanel
-            farms={farms}
+            farms={farmsWithLiveData}
             onAddFarm={handleAddFarm}
             onSelectFarm={handleSelectFarm}
             onEditFarm={handleEditFarm}
