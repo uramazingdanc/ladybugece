@@ -19,7 +19,8 @@ import Overlay from 'ol/Overlay';
 import FarmListPanel from './FarmListPanel';
 import FarmFormDialog from './FarmFormDialog';
 import DeleteFarmDialog from './DeleteFarmDialog';
-import { useMqttWebSocket, statusToAlertLevel } from '@/hooks/useMqttWebSocket';
+import { statusToAlertLevel } from '@/hooks/useMqttWebSocket';
+import { useMqttContext } from '@/contexts/MqttContext';
 
 interface Farm {
   id: string;
@@ -85,8 +86,8 @@ export default function FarmMap() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
 
-  // MQTT live trap data
-  const { traps: mqttTraps, isConnected: mqttConnected } = useMqttWebSocket();
+  // MQTT live trap data from shared context
+  const { traps: mqttTraps, isConnected: mqttConnected } = useMqttContext();
 
   // Convert MQTT traps to LiveTrap format (only those with GPS coordinates)
   const liveTraps: LiveTrap[] = Object.entries(mqttTraps)
