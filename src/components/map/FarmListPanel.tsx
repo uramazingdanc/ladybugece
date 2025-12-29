@@ -15,7 +15,9 @@ interface Farm {
   longitude: number;
   alert_level?: 'Green' | 'Yellow' | 'Red';
   last_moth_count?: number;
+  temperature?: number;
   device_id?: string;
+  hasLiveData?: boolean;
 }
 
 interface FarmListPanelProps {
@@ -44,9 +46,9 @@ const getStatusLabel = (alertLevel?: string) => {
     case 'Red':
       return 'High Risk';
     case 'Yellow':
-      return 'Medium';
+      return 'Moderate';
     case 'Green':
-      return 'Low Risk';
+      return 'Safe';
     default:
       return 'No Data';
   }
@@ -122,16 +124,21 @@ export default function FarmListPanel({
                 filteredFarms.map((farm) => (
                   <div
                     key={farm.id}
-                    className="p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+                    className={`p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${farm.hasLiveData ? 'ring-2 ring-green-500/50' : ''}`}
                     onClick={() => onSelectFarm(farm)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-medium truncate">{farm.farm_name}</h4>
                           <Badge variant={getAlertBadgeVariant(farm.alert_level) as any}>
                             {getStatusLabel(farm.alert_level)}
                           </Badge>
+                          {farm.hasLiveData && (
+                            <span className="text-xs text-green-500 flex items-center gap-1">
+                              <span className="animate-pulse">●</span> Live
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                           <MapPin className="h-3 w-3" />
@@ -145,6 +152,11 @@ export default function FarmListPanel({
                         {farm.last_moth_count !== undefined && (
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Moths: {farm.last_moth_count}
+                          </div>
+                        )}
+                        {farm.temperature !== undefined && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Temp: {farm.temperature}°C
                           </div>
                         )}
                       </div>
