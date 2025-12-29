@@ -19,9 +19,8 @@ interface UseMqttWebSocketReturn {
 }
 
 // HiveMQ Public Broker WebSocket URL (port 8000 for ws://, 8884 for wss://)
-const HIVEMQ_BROKER_URL = 'ws://broker.hivemq.com:8000/mqtt';
-const HIVEMQ_USERNAME = 'ladybug123';
-const HIVEMQ_PASSWORD = 'capstone123';
+// Note: The public broker doesn't require authentication - it's anonymous access
+const HIVEMQ_BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
 
 // Topics to subscribe
 const TOPICS = ['ladybug/+/status', 'ladybug/+/location'];
@@ -81,8 +80,6 @@ export function useMqttWebSocket(): UseMqttWebSocketReturn {
 
     try {
       const client = mqtt.connect(HIVEMQ_BROKER_URL, {
-        username: HIVEMQ_USERNAME,
-        password: HIVEMQ_PASSWORD,
         clientId: `ladybug_web_${Math.random().toString(16).substr(2, 8)}`,
         keepalive: 60,
         reconnectPeriod: 5000,
