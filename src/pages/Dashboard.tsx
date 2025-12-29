@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Bug, MapPin, Activity, Wifi, Radio } from 'lucide-react';
+import { Bug, MapPin, Activity, Wifi, WifiOff, Radio } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import FarmMap from '@/components/map/FarmMap';
 import GovernmentDashboard from '@/components/dashboard/GovernmentDashboard';
 import MqttTrapMonitor from '@/components/dashboard/MqttTrapMonitor';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useMqttContext } from '@/contexts/MqttContext';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('map');
+  const { isConnected } = useMqttContext();
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -22,13 +24,19 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-xs">Onion Armyworm Monitoring System - Philippines</p>
               </div>
             </div>
-            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+            <Badge 
+              variant="outline" 
+              className={isConnected 
+                ? "bg-green-500/10 text-green-600 border-green-500/20" 
+                : "bg-red-500/10 text-red-600 border-red-500/20"
+              }
+            >
               <span className="relative flex h-2 w-2 mr-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'} opacity-75`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
               </span>
-              <Wifi className="h-3 w-3 mr-1" />
-              MQTT Live
+              {isConnected ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+              {isConnected ? 'MQTT Live' : 'MQTT Offline'}
             </Badge>
           </div>
         </div>
