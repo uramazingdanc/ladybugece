@@ -9,7 +9,12 @@ import { cn } from '@/lib/utils';
 export default function MqttTrapMonitor() {
   const { traps, isConnected, error, reconnect, sendTestMessage } = useMqttContext();
 
-  const trapEntries = Object.entries(traps);
+  // Sort traps numerically by trap number (trap1, trap2, ..., trap10)
+  const trapEntries = Object.entries(traps).sort(([a], [b]) => {
+    const numA = parseInt(a.replace(/\D/g, '')) || 0;
+    const numB = parseInt(b.replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
 
   const getStatusColor = (status?: number) => {
     switch (status) {
