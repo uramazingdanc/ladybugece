@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import 'ol/ol.css';
 import Map from 'ol/Map';
 import View from 'ol/View';
@@ -13,11 +14,12 @@ import OSM from 'ol/source/OSM';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import { fromLonLat } from 'ol/proj';
-import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
+import { Style, Circle as CircleStyle, Fill, Stroke, RegularShape } from 'ol/style';
 import Overlay from 'ol/Overlay';
 import FarmListPanel from './FarmListPanel';
 import FarmFormDialog from './FarmFormDialog';
 import DeleteFarmDialog from './DeleteFarmDialog';
+import { useMqttWebSocket, statusToAlertLevel } from '@/hooks/useMqttWebSocket';
 
 interface Farm {
   id: string;
@@ -29,6 +31,16 @@ interface Farm {
   last_updated?: string;
   temperature?: number;
   device_id?: string;
+}
+
+interface LiveTrap {
+  id: string;
+  latitude: number;
+  longitude: number;
+  alert_level: 'Green' | 'Yellow' | 'Red';
+  moth_count?: number;
+  temperature?: number;
+  last_updated?: string;
 }
 
 // Helper function to get marker color based on alert level
@@ -72,6 +84,22 @@ export default function FarmMap() {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+
+  // MQTT live trap data
+  const { traps: mqttTraps, isConnected: mqttConnected } = useMqttWebSocket();
+
+  // Convert MQTT traps to LiveTrap format (only those with GPS coordinates)
+  const liveTraps: LiveTrap[] = Object.entries(mqttTraps)
+    .filter(([_, data]) => data.latitude !== undefined && data.longitude !== undefined)
+    .map(([id, data]) => ({
+      id,
+      latitude: data.latitude!,
+      longitude: data.longitude!,
+      alert_level: statusToAlertLevel(data.status),
+      moth_count: data.moth_count,
+      temperature: data.temperature,
+      last_updated: data.last_updated
+    }));
 
   const fetchFarms = useCallback(async () => {
     try {
@@ -188,7 +216,10 @@ export default function FarmMap() {
   }, []);
 
   useEffect(() => {
-    if (!mapRef.current || farms.length === 0) return;
+    if (!mapRef.current) return;
+    
+    // Allow map to initialize even without farms (to show live traps)
+    if (farms.length === 0 && liveTraps.length === 0 && !loading) return;
 
     // Initialize map if not already initialized
     if (!mapInstanceRef.current) {
@@ -239,13 +270,17 @@ export default function FarmMap() {
             }
           };
           
+          const isLiveTrap = properties.is_live_trap;
+          const title = isLiveTrap ? `🔴 Live Trap: ${properties.trap_id}` : properties.farm_name;
+          
           // Update popup content
           popupRef.current.innerHTML = `
             <div class="p-4 bg-card border border-border rounded-lg shadow-lg min-w-[200px]">
               <button class="absolute top-2 right-2 text-muted-foreground hover:text-foreground" onclick="this.parentElement.style.display='none'">
                 ✕
               </button>
-              <h3 class="font-bold text-lg mb-2">${properties.farm_name}</h3>
+              <h3 class="font-bold text-lg mb-2">${title}</h3>
+              ${isLiveTrap ? '<div class="text-xs text-primary mb-2 flex items-center gap-1"><span class="animate-pulse">●</span> MQTT Live Data</div>' : ''}
               <div class="space-y-1 text-sm">
                 ${properties.device_id ? `
                   <div>
@@ -291,9 +326,10 @@ export default function FarmMap() {
       });
     }
 
-    // Update markers
+    // Update markers - combine farms and live traps
     const vectorSource = new VectorSource();
     
+    // Add farm markers (circles)
     farms.forEach((farm) => {
       const feature = new Feature({
         geometry: new Point(fromLonLat([farm.longitude, farm.latitude])),
@@ -303,6 +339,7 @@ export default function FarmMap() {
         last_updated: farm.last_updated,
         temperature: farm.temperature,
         device_id: farm.device_id,
+        is_live_trap: false,
       });
 
       const markerColor = getMarkerColor(farm.alert_level);
@@ -318,6 +355,41 @@ export default function FarmMap() {
               color: '#ffffff',
               width: 3,
             }),
+          }),
+        })
+      );
+
+      vectorSource.addFeature(feature);
+    });
+
+    // Add live MQTT trap markers (diamonds/squares rotated)
+    liveTraps.forEach((trap) => {
+      const feature = new Feature({
+        geometry: new Point(fromLonLat([trap.longitude, trap.latitude])),
+        trap_id: trap.id,
+        alert_level: trap.alert_level,
+        last_moth_count: trap.moth_count,
+        last_updated: trap.last_updated,
+        temperature: trap.temperature,
+        is_live_trap: true,
+      });
+
+      const markerColor = getMarkerColor(trap.alert_level);
+      
+      // Diamond shape for live traps
+      feature.setStyle(
+        new Style({
+          image: new RegularShape({
+            fill: new Fill({
+              color: markerColor,
+            }),
+            stroke: new Stroke({
+              color: '#ffffff',
+              width: 2,
+            }),
+            points: 4,
+            radius: 12,
+            angle: Math.PI / 4, // Rotate to make diamond
           }),
         })
       );
@@ -346,7 +418,7 @@ export default function FarmMap() {
         mapInstanceRef.current = null;
       }
     };
-  }, [farms]);
+  }, [farms, liveTraps, loading]);
 
   // CRUD handlers
   const handleAddFarm = () => {
@@ -432,10 +504,28 @@ export default function FarmMap() {
                     Real-time overview of pest alert levels across all monitored farms
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchFarms} className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </Button>
+                <div className="flex items-center gap-3">
+                  {/* MQTT Status Badge */}
+                  <Badge 
+                    variant="outline" 
+                    className={mqttConnected 
+                      ? "bg-green-500/10 text-green-600 border-green-500/20" 
+                      : "bg-red-500/10 text-red-600 border-red-500/20"
+                    }
+                  >
+                    <span className="relative flex h-2 w-2 mr-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${mqttConnected ? 'bg-green-400' : 'bg-red-400'} opacity-75`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${mqttConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    </span>
+                    <Radio className="h-3 w-3 mr-1" />
+                    {mqttConnected ? 'MQTT Live' : 'MQTT Offline'}
+                    {liveTraps.length > 0 && ` (${liveTraps.length})`}
+                  </Badge>
+                  <Button variant="outline" size="sm" onClick={fetchFarms} className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="px-0 pb-0">
@@ -453,7 +543,7 @@ export default function FarmMap() {
               </div>
 
               {/* Legend */}
-              <div className="px-6 py-4 border-t bg-card flex justify-start gap-8 text-sm">
+              <div className="px-6 py-4 border-t bg-card flex flex-wrap justify-start gap-x-8 gap-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-alert-green"></div>
                   <span className="text-muted-foreground">Low Risk</span>
@@ -465,6 +555,14 @@ export default function FarmMap() {
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-alert-red"></div>
                   <span className="text-muted-foreground">High Risk</span>
+                </div>
+                <div className="flex items-center gap-2 border-l pl-4 ml-2">
+                  <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm bg-primary"></div>
+                  <span className="text-muted-foreground">Farm</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rotate-45 border-2 border-white shadow-sm bg-primary"></div>
+                  <span className="text-muted-foreground">Live Trap (MQTT)</span>
                 </div>
               </div>
             </CardContent>
