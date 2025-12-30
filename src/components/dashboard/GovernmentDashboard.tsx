@@ -61,29 +61,71 @@ export default function GovernmentDashboard() {
     }
   }, [traps]);
 
+  // Helper function to determine alert level from MQTT status
+  const getAlertLevelFromStatus = (status?: number): 'Green' | 'Yellow' | 'Red' | null => {
+    if (status === undefined) return null;
+    switch (status) {
+      case 0: return 'Green';
+      case 1: return 'Green';
+      case 2: return 'Yellow';
+      case 3: return 'Red';
+      default: return null;
+    }
+  };
+
   const fetchStats = async () => {
     try {
-      // Fetch all farms and their alerts
-      const {
-        data: farms
-      } = await supabase.from('farms').select(`
+      // Fetch all farms with their devices and alerts
+      const { data: farms } = await supabase.from('farms').select(`
           id,
+          devices (
+            id
+          ),
           ipm_alerts (
             alert_level
           )
         `);
 
       // Fetch total readings count
-      const {
-        count: readingsCount
-      } = await supabase.from('pest_readings').select('*', {
+      const { count: readingsCount } = await supabase.from('pest_readings').select('*', {
         count: 'exact',
         head: true
       });
+
       if (farms) {
-        const redAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Red').length;
-        const yellowAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Yellow').length;
-        const greenAlerts = farms.filter(f => f.ipm_alerts?.alert_level === 'Green').length;
+        let redAlerts = 0;
+        let yellowAlerts = 0;
+        let greenAlerts = 0;
+
+        farms.forEach(farm => {
+          // Check if any device for this farm has live MQTT data
+          const devices = farm.devices || [];
+          let liveAlertLevel: 'Green' | 'Yellow' | 'Red' | null = null;
+
+          for (const device of devices) {
+            const trapData = traps[device.id];
+            if (trapData?.status !== undefined) {
+              liveAlertLevel = getAlertLevelFromStatus(trapData.status);
+              break; // Use the first device with live data
+            }
+          }
+
+          // Use live MQTT alert level if available, otherwise use database alert level
+          const effectiveAlertLevel = liveAlertLevel || farm.ipm_alerts?.alert_level || 'Green';
+
+          switch (effectiveAlertLevel) {
+            case 'Red':
+              redAlerts++;
+              break;
+            case 'Yellow':
+              yellowAlerts++;
+              break;
+            case 'Green':
+              greenAlerts++;
+              break;
+          }
+        });
+
         setStats({
           totalFarms: farms.length,
           redAlerts,
