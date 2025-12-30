@@ -108,14 +108,27 @@ export default function PestIncidentsChart() {
       });
     }
 
-    // Add live MQTT trap data for today
-    const today = format(new Date(), 'MMM dd, yyyy');
+    // Add live MQTT trap data - accumulate with existing data
     Object.entries(traps).forEach(([deviceId, trapData]) => {
       const farmId = deviceToFarm[deviceId];
       if (farmId && trapData.moth_count !== undefined) {
-        if (!grouped[today]) grouped[today] = {};
-        // Update today's count with live data (replace if already exists from DB)
-        grouped[today][farmId] = (grouped[today][farmId] || 0) + trapData.moth_count;
+        const readingDate = new Date();
+        let dateKey: string;
+
+        if (period === 'day') {
+          dateKey = format(readingDate, 'MMM dd, yyyy');
+        } else if (period === 'week') {
+          const weekStart = startOfWeek(readingDate, { weekStartsOn: 0 });
+          dateKey = format(weekStart, 'MMM dd, yyyy');
+        } else {
+          const monthStart = startOfMonth(readingDate);
+          dateKey = format(monthStart, 'MMM yyyy');
+        }
+
+        if (!grouped[dateKey]) grouped[dateKey] = {};
+        if (!grouped[dateKey][farmId]) grouped[dateKey][farmId] = 0;
+        // Add MQTT data to the total sum
+        grouped[dateKey][farmId] += trapData.moth_count;
       }
     });
 
