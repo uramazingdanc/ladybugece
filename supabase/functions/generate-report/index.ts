@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Generating report...');
+    console.log('Generating analytics report...');
 
     // Get the days parameter (default to 7 days)
     const url = new URL(req.url);
@@ -29,7 +29,36 @@ Deno.serve(async (req) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Fetch pest readings with farm data using RPC for proper JOIN
+    // Fetch all farms with their devices and current alert status
+    const { data: farms, error: farmsError } = await supabase
+      .from('farms')
+      .select(`
+        id,
+        farm_name,
+        latitude,
+        longitude,
+        devices (
+          id,
+          device_name
+        ),
+        ipm_alerts (
+          alert_level,
+          last_moth_count,
+          last_temperature,
+          last_larva_density,
+          last_updated
+        )
+      `);
+
+    if (farmsError) {
+      console.error('Error fetching farms:', farmsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch farms data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Fetch pest readings with farm data using RPC for historical data
     const { data: readings, error: readingsError } = await supabase.rpc('get_readings_with_farms', {
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString()
@@ -37,16 +66,10 @@ Deno.serve(async (req) => {
 
     if (readingsError) {
       console.error('Error fetching readings:', readingsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch readings data' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Continue without historical readings - we'll use current status
     }
 
-    // Generate CSV with columns: Date, Time, Farm_ID, longitude, latitude, Moth count, Temperature, Predicted Larva Density, Farm status
-    const csvHeader = 'Date,Time,Farm_ID,longitude,latitude,Moth count,Temperature,Predicted Larva Density,Farm status\n';
-    
-    // Map alert levels to descriptive status based on colors
+    // Map alert levels to descriptive status
     const getStatusText = (alertLevel: string): string => {
       switch (alertLevel) {
         case 'Red':
@@ -59,35 +82,94 @@ Deno.serve(async (req) => {
           return 'Unknown';
       }
     };
-    
-    const csvRows = readings?.map((reading: any) => {
-      const farmName = reading.farm_name || 'Unknown';
-      const longitude = reading.longitude || '';
-      const latitude = reading.latitude || '';
-      const alertLevel = reading.alert_level || 'Unknown';
+
+    // Generate CSV content
+    let csvContent = '';
+
+    // Section 1: Summary Statistics
+    csvContent += '=== ANALYTICS SUMMARY ===\n';
+    csvContent += 'Report Generated,' + new Date().toLocaleString() + '\n';
+    csvContent += 'Report Period,' + days + ' days\n';
+    csvContent += 'Start Date,' + startDate.toLocaleDateString() + '\n';
+    csvContent += 'End Date,' + endDate.toLocaleDateString() + '\n\n';
+
+    // Calculate alert statistics
+    let greenCount = 0;
+    let yellowCount = 0;
+    let redCount = 0;
+
+    farms?.forEach(farm => {
+      // ipm_alerts is an array, get the first one
+      const alertData = Array.isArray(farm.ipm_alerts) ? farm.ipm_alerts[0] : farm.ipm_alerts;
+      const alertLevel = alertData?.alert_level || 'Green';
+      switch (alertLevel) {
+        case 'Green': greenCount++; break;
+        case 'Yellow': yellowCount++; break;
+        case 'Red': redCount++; break;
+      }
+    });
+
+    csvContent += '=== ALERT DISTRIBUTION ===\n';
+    csvContent += 'Total Farms Monitored,' + (farms?.length || 0) + '\n';
+    csvContent += 'Green Alert (Low Risk),' + greenCount + '\n';
+    csvContent += 'Yellow Alert (Medium Risk),' + yellowCount + '\n';
+    csvContent += 'Red Alert (High Risk),' + redCount + '\n\n';
+
+    // Section 2: Current Farm Status (matches dashboard view)
+    csvContent += '=== CURRENT FARM STATUS ===\n';
+    csvContent += 'Farm_ID,Longitude,Latitude,Last Moth Count,Last Temperature,Predicted Larva Density,Farm Status,Last Updated\n';
+
+    farms?.forEach(farm => {
+      // ipm_alerts is an array, get the first one
+      const alert = Array.isArray(farm.ipm_alerts) ? farm.ipm_alerts[0] : farm.ipm_alerts;
+      const alertLevel = alert?.alert_level || 'Green';
       const farmStatus = getStatusText(alertLevel);
-      const larvaDensity = reading.larva_density !== null ? reading.larva_density : '';
+      const lastUpdated = alert?.last_updated 
+        ? new Date(alert.last_updated).toLocaleString() 
+        : 'N/A';
       
-      // Split timestamp into date and time
-      const dateObj = new Date(reading.created_at);
-      const date = dateObj.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      const time = dateObj.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
+      csvContent += `${farm.farm_name},${farm.longitude},${farm.latitude},${alert?.last_moth_count || 0},${alert?.last_temperature || ''},${alert?.last_larva_density || ''},${farmStatus},${lastUpdated}\n`;
+    });
+
+    csvContent += '\n';
+
+    // Section 3: Historical Readings (if available)
+    if (readings && readings.length > 0) {
+      csvContent += '=== HISTORICAL PEST READINGS ===\n';
+      csvContent += 'Date,Time,Farm_ID,Longitude,Latitude,Moth Count,Temperature,Predicted Larva Density,Farm Status\n';
       
-      return `${date},${time},${farmName},${longitude},${latitude},${reading.moth_count},${reading.temperature},${larvaDensity},${farmStatus}`;
-    }).join('\n') || '';
+      readings.forEach((reading: any) => {
+        const farmName = reading.farm_name || 'Unknown';
+        const longitude = reading.longitude || '';
+        const latitude = reading.latitude || '';
+        const alertLevel = reading.alert_level || 'Unknown';
+        const farmStatus = getStatusText(alertLevel);
+        const larvaDensity = reading.larva_density !== null ? reading.larva_density : '';
+        
+        // Split timestamp into date and time
+        const dateObj = new Date(reading.created_at);
+        const date = dateObj.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        const time = dateObj.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        
+        csvContent += `${date},${time},${farmName},${longitude},${latitude},${reading.moth_count},${reading.temperature},${larvaDensity},${farmStatus}\n`;
+      });
+    } else {
+      csvContent += '=== HISTORICAL PEST READINGS ===\n';
+      csvContent += 'No historical readings available for the selected period.\n';
+      csvContent += 'Note: Data is collected in real-time via MQTT. Current farm status is shown above.\n';
+    }
 
-    const csvContent = csvHeader + csvRows;
-
-    console.log('CSV report generated successfully');
+    console.log('CSV analytics report generated successfully');
+    console.log(`Report contains ${farms?.length || 0} farms and ${readings?.length || 0} historical readings`);
 
     return new Response(
       csvContent,
@@ -96,7 +178,7 @@ Deno.serve(async (req) => {
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="ladybug-report-${days}days.csv"`
+          'Content-Disposition': `attachment; filename="ladybug-analytics-report-${days}days.csv"`
         } 
       }
     );
