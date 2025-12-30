@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { useMqttContext } from '@/contexts/MqttContext';
 
 interface ChartDataPoint {
   date: string;
@@ -15,6 +16,7 @@ export default function PestIncidentsChart() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [farms, setFarms] = useState<{ id: string; name: string; color: string }[]>([]);
   const [period, setPeriod] = useState<PeriodType>('day');
+  const { traps } = useMqttContext();
 
   useEffect(() => {
     fetchIncidentsData();
@@ -37,7 +39,7 @@ export default function PestIncidentsChart() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [period]);
+  }, [period, traps]);
 
   const fetchIncidentsData = async () => {
     // Fetch all farms
@@ -77,10 +79,11 @@ export default function PestIncidentsChart() {
 
     console.log('Pest readings fetched:', readings);
 
-    if (readings && readings.length > 0) {
-      // Group by date and farm based on selected period
-      const grouped: { [date: string]: { [farmId: string]: number } } = {};
-      
+    // Group by date and farm based on selected period
+    const grouped: { [date: string]: { [farmId: string]: number } } = {};
+    
+    // Add database readings
+    if (readings) {
       readings.forEach((reading: any) => {
         const readingDate = new Date(reading.created_at);
         let dateKey: string;
@@ -103,27 +106,35 @@ export default function PestIncidentsChart() {
           grouped[dateKey][farmId] += reading.moth_count;
         }
       });
-
-      // Convert to chart format and sort by date
-      const chartData = Object.entries(grouped)
-        .map(([date, farms]) => {
-          const dataPoint: ChartDataPoint = { date };
-          Object.entries(farms).forEach(([farmId, count]) => {
-            const farm = farmsWithColors.find(f => f.id === farmId);
-            if (farm) {
-              dataPoint[farm.name] = count;
-            }
-          });
-          return dataPoint;
-        })
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      console.log('Chart data prepared:', chartData);
-      setChartData(chartData);
-    } else {
-      console.log('No readings data available');
-      setChartData([]);
     }
+
+    // Add live MQTT trap data for today
+    const today = format(new Date(), 'MMM dd, yyyy');
+    Object.entries(traps).forEach(([deviceId, trapData]) => {
+      const farmId = deviceToFarm[deviceId];
+      if (farmId && trapData.moth_count !== undefined) {
+        if (!grouped[today]) grouped[today] = {};
+        // Update today's count with live data (replace if already exists from DB)
+        grouped[today][farmId] = (grouped[today][farmId] || 0) + trapData.moth_count;
+      }
+    });
+
+    // Convert to chart format and sort by date
+    const chartDataResult = Object.entries(grouped)
+      .map(([date, farms]) => {
+        const dataPoint: ChartDataPoint = { date };
+        Object.entries(farms).forEach(([farmId, count]) => {
+          const farm = farmsWithColors.find(f => f.id === farmId);
+          if (farm) {
+            dataPoint[farm.name] = count;
+          }
+        });
+        return dataPoint;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    console.log('Chart data prepared:', chartDataResult);
+    setChartData(chartDataResult);
   };
 
   if (chartData.length === 0) {
