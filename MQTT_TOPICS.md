@@ -6,14 +6,20 @@ This document describes the MQTT topic structure used by the LADYBUG system.
 
 ### Status Topic
 **Topic:** `ladybug/trap{n}/status`  
-**Format:** `moth_count,temperature,status`
+**Format:** `moth_count,temperature,larva_density,status`
+
+**Fields:**
+- `moth_count` - Number of moths detected
+- `temperature` - Temperature in °C
+- `larva_density` - Predicted/estimated larva density
+- `status` - Alert status code (1-3)
 
 **Status Legend:**
 - `1` - Safe (Green)
 - `2` - Moderate (Yellow)
 - `3` - High Risk (Red)
 
-**Example:** `5,37,1` (5 moths, 37°C, Safe)
+**Example:** `10,34.5,100,2` (10 moths, 34.5°C, larva density 100, Moderate)
 
 ### Location Topic
 **Topic:** `ladybug/trap{n}/location`  

@@ -4,6 +4,7 @@ import mqtt, { MqttClient } from 'mqtt';
 interface TrapData {
   moth_count?: number;
   temperature?: number;
+  larva_density?: number;
   status?: number;
   latitude?: number;
   longitude?: number;
@@ -32,13 +33,24 @@ export function useMqttWebSocket(): UseMqttWebSocketReturn {
   const clientRef = useRef<MqttClient | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const parseStatusPayload = (payload: string): { moth_count: number; temperature: number; status: number } | null => {
+  // Parse new 4-value format: mothcount, temp, larvadensity, status
+  const parseStatusPayload = (payload: string): { moth_count: number; temperature: number; larva_density: number; status: number } | null => {
     try {
       const parts = payload.split(',');
-      if (parts.length >= 3) {
+      // Support both old 3-value format and new 4-value format
+      if (parts.length >= 4) {
         return {
           moth_count: parseInt(parts[0], 10),
           temperature: parseFloat(parts[1]),
+          larva_density: parseFloat(parts[2]),
+          status: parseInt(parts[3], 10)
+        };
+      } else if (parts.length >= 3) {
+        // Fallback for old format without larva_density
+        return {
+          moth_count: parseInt(parts[0], 10),
+          temperature: parseFloat(parts[1]),
+          larva_density: 0,
           status: parseInt(parts[2], 10)
         };
       }

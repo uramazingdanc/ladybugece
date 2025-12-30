@@ -85,6 +85,7 @@ export type Database = {
         Row: {
           alert_level: Database["public"]["Enums"]["alert_level"]
           farm_id: string
+          last_larva_density: number | null
           last_moth_count: number
           last_temperature: number | null
           last_updated: string
@@ -92,6 +93,7 @@ export type Database = {
         Insert: {
           alert_level?: Database["public"]["Enums"]["alert_level"]
           farm_id: string
+          last_larva_density?: number | null
           last_moth_count?: number
           last_temperature?: number | null
           last_updated?: string
@@ -99,6 +101,7 @@ export type Database = {
         Update: {
           alert_level?: Database["public"]["Enums"]["alert_level"]
           farm_id?: string
+          last_larva_density?: number | null
           last_moth_count?: number
           last_temperature?: number | null
           last_updated?: string
@@ -119,6 +122,7 @@ export type Database = {
           degree_days: number | null
           device_id: string
           id: number
+          larva_density: number | null
           moth_count: number
           temperature: number
         }
@@ -127,6 +131,7 @@ export type Database = {
           degree_days?: number | null
           device_id: string
           id?: number
+          larva_density?: number | null
           moth_count: number
           temperature: number
         }
@@ -135,6 +140,7 @@ export type Database = {
           degree_days?: number | null
           device_id?: string
           id?: number
+          larva_density?: number | null
           moth_count?: number
           temperature?: number
         }
@@ -185,6 +191,7 @@ export type Database = {
           device_id: string
           farm_id: string
           farm_name: string
+          larva_density: number
           latitude: number
           longitude: number
           moth_count: number

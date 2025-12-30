@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate CSV with columns: Date, Time, Farm_ID, longitude, latitude, Moth count, Temperature, Farm status
-    const csvHeader = 'Date,Time,Farm_ID,longitude,latitude,Moth count,Temperature,Farm status\n';
+    // Generate CSV with columns: Date, Time, Farm_ID, longitude, latitude, Moth count, Temperature, Predicted Larva Density, Farm status
+    const csvHeader = 'Date,Time,Farm_ID,longitude,latitude,Moth count,Temperature,Predicted Larva Density,Farm status\n';
     
     // Map alert levels to descriptive status based on colors
     const getStatusText = (alertLevel: string): string => {
@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
       const latitude = reading.latitude || '';
       const alertLevel = reading.alert_level || 'Unknown';
       const farmStatus = getStatusText(alertLevel);
+      const larvaDensity = reading.larva_density !== null ? reading.larva_density : '';
       
       // Split timestamp into date and time
       const dateObj = new Date(reading.created_at);
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
         hour12: false
       });
       
-      return `${date},${time},${farmName},${longitude},${latitude},${reading.moth_count},${reading.temperature},${farmStatus}`;
+      return `${date},${time},${farmName},${longitude},${latitude},${reading.moth_count},${reading.temperature},${larvaDensity},${farmStatus}`;
     }).join('\n') || '';
 
     const csvContent = csvHeader + csvRows;

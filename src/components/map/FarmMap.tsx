@@ -31,6 +31,7 @@ interface Farm {
   last_moth_count?: number;
   last_updated?: string;
   temperature?: number;
+  larva_density?: number;
   device_id?: string;
 }
 
@@ -41,6 +42,7 @@ interface LiveTrap {
   alert_level: 'Green' | 'Yellow' | 'Red';
   moth_count?: number;
   temperature?: number;
+  larva_density?: number;
   last_updated?: string;
 }
 
@@ -99,6 +101,7 @@ export default function FarmMap() {
       alert_level: statusToAlertLevel(data.status),
       moth_count: data.moth_count,
       temperature: data.temperature,
+      larva_density: data.larva_density,
       last_updated: data.last_updated
     }));
 
@@ -135,6 +138,7 @@ export default function FarmMap() {
           last_moth_count: alert?.last_moth_count,
           last_updated: alert?.last_updated,
           temperature: alert?.last_temperature,
+          larva_density: alert?.last_larva_density,
           device_id: device?.id,
         };
       });
@@ -160,6 +164,7 @@ export default function FarmMap() {
         alert_level: statusToAlertLevel(liveMqttData.status),
         last_moth_count: liveMqttData.moth_count,
         temperature: liveMqttData.temperature,
+        larva_density: liveMqttData.larva_density,
         last_updated: liveMqttData.last_updated,
         hasLiveData: true,
       };

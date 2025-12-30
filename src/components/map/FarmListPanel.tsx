@@ -16,6 +16,7 @@ interface Farm {
   alert_level?: 'Green' | 'Yellow' | 'Red';
   last_moth_count?: number;
   temperature?: number;
+  larva_density?: number;
   device_id?: string;
   hasLiveData?: boolean;
 }
@@ -152,6 +153,11 @@ export default function FarmListPanel({
                         {farm.last_moth_count !== undefined && (
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Moths: {farm.last_moth_count}
+                          </div>
+                        )}
+                        {farm.larva_density !== undefined && farm.larva_density > 0 && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Larva Density: {farm.larva_density}
                           </div>
                         )}
                         {farm.temperature !== undefined && (
