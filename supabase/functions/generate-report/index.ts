@@ -93,10 +93,14 @@ Deno.serve(async (req) => {
     csvContent += 'Start Date,' + startDate.toLocaleDateString() + '\n';
     csvContent += 'End Date,' + endDate.toLocaleDateString() + '\n\n';
 
-    // Calculate alert statistics
+    // Calculate alert statistics and moth count/larva density totals from current farm status
     let greenCount = 0;
     let yellowCount = 0;
     let redCount = 0;
+    let totalMothCount = 0;
+    let totalLarvaDensity = 0;
+    let mothCountEntries = 0;
+    let larvaDensityEntries = 0;
 
     farms?.forEach(farm => {
       // ipm_alerts is an array, get the first one
@@ -107,13 +111,61 @@ Deno.serve(async (req) => {
         case 'Yellow': yellowCount++; break;
         case 'Red': redCount++; break;
       }
+      
+      // Accumulate moth count and larva density from current status
+      if (alertData?.last_moth_count !== null && alertData?.last_moth_count !== undefined) {
+        totalMothCount += alertData.last_moth_count;
+        mothCountEntries++;
+      }
+      if (alertData?.last_larva_density !== null && alertData?.last_larva_density !== undefined) {
+        totalLarvaDensity += alertData.last_larva_density;
+        larvaDensityEntries++;
+      }
     });
+
+    // Calculate historical totals and averages from pest readings
+    let historicalMothTotal = 0;
+    let historicalLarvaTotal = 0;
+    let historicalMothCount = 0;
+    let historicalLarvaCount = 0;
+
+    if (readings && readings.length > 0) {
+      readings.forEach((reading: any) => {
+        if (reading.moth_count !== null && reading.moth_count !== undefined) {
+          historicalMothTotal += reading.moth_count;
+          historicalMothCount++;
+        }
+        if (reading.larva_density !== null && reading.larva_density !== undefined) {
+          historicalLarvaTotal += reading.larva_density;
+          historicalLarvaCount++;
+        }
+      });
+    }
+
+    // Calculate averages
+    const avgMothCount = mothCountEntries > 0 ? (totalMothCount / mothCountEntries).toFixed(2) : 'N/A';
+    const avgLarvaDensity = larvaDensityEntries > 0 ? (totalLarvaDensity / larvaDensityEntries).toFixed(2) : 'N/A';
+    const historicalAvgMoth = historicalMothCount > 0 ? (historicalMothTotal / historicalMothCount).toFixed(2) : 'N/A';
+    const historicalAvgLarva = historicalLarvaCount > 0 ? (historicalLarvaTotal / historicalLarvaCount).toFixed(2) : 'N/A';
 
     csvContent += '=== ALERT DISTRIBUTION ===\n';
     csvContent += 'Total Farms Monitored,' + (farms?.length || 0) + '\n';
     csvContent += 'Green Alert (Low Risk),' + greenCount + '\n';
     csvContent += 'Yellow Alert (Medium Risk),' + yellowCount + '\n';
     csvContent += 'Red Alert (High Risk),' + redCount + '\n\n';
+
+    csvContent += '=== PEST INCIDENTS SUMMARY (Current Status) ===\n';
+    csvContent += 'Total Moth Count (All Farms),' + totalMothCount + '\n';
+    csvContent += 'Average Moth Count per Farm,' + avgMothCount + '\n';
+    csvContent += 'Total Predicted Larva Density,' + totalLarvaDensity.toFixed(2) + '\n';
+    csvContent += 'Average Larva Density per Farm,' + avgLarvaDensity + '\n\n';
+
+    csvContent += '=== HISTORICAL TRENDS (' + days + ' days) ===\n';
+    csvContent += 'Total Readings Collected,' + (readings?.length || 0) + '\n';
+    csvContent += 'Historical Moth Count Total,' + historicalMothTotal + '\n';
+    csvContent += 'Historical Moth Count Average,' + historicalAvgMoth + '\n';
+    csvContent += 'Historical Larva Density Total,' + historicalLarvaTotal.toFixed(2) + '\n';
+    csvContent += 'Historical Larva Density Average,' + historicalAvgLarva + '\n\n';
 
     // Section 2: Current Farm Status (matches dashboard view)
     csvContent += '=== CURRENT FARM STATUS ===\n';
