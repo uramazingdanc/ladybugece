@@ -14,7 +14,7 @@ const corsHeaders = {
  * 3. Any HTTP client sending the expected JSON format
  * 
  * Handles two topic types:
- * - ladybug/trap{n}/status - CSV format: moth_count,temperature,status_code
+ * - ladybug/trap{n}/status - CSV format: moth_count,temperature,larva_density,status_code
  * - ladybug/trap{n}/location - CSV format: latitude,longitude
  * 
  * Architecture Options:
@@ -74,25 +74,26 @@ function parseTopic(topic: string): { device_id: string; messageType: 'status' |
   return { device_id, messageType };
 }
 
-// Parse status CSV payload: moth_count,temperature,status_code
-function parseStatusPayload(payload: string): { moth_count: number; temperature: number; status: number } | null {
+// Parse status CSV payload: moth_count,temperature,larva_density,status_code
+function parseStatusPayload(payload: string): { moth_count: number; temperature: number; larva_density: number; status: number } | null {
   const parts = payload.trim().split(',');
   
-  if (parts.length !== 3) {
-    console.error('Invalid status payload format:', payload);
+  if (parts.length !== 4) {
+    console.error('Invalid status payload format. Expected: moth_count,temperature,larva_density,status. Got:', payload);
     return null;
   }
   
   const moth_count = parseInt(parts[0], 10);
   const temperature = parseFloat(parts[1]);
-  const status = parseInt(parts[2], 10);
+  const larva_density = parseFloat(parts[2]);
+  const status = parseInt(parts[3], 10);
   
-  if (isNaN(moth_count) || isNaN(temperature) || isNaN(status)) {
+  if (isNaN(moth_count) || isNaN(temperature) || isNaN(larva_density) || isNaN(status)) {
     console.error('Invalid numeric values in status payload:', payload);
     return null;
   }
   
-  return { moth_count, temperature, status };
+  return { moth_count, temperature, larva_density, status };
 }
 
 // Parse location CSV payload: latitude,longitude
@@ -116,12 +117,13 @@ function parseLocationPayload(payload: string): { latitude: number; longitude: n
 }
 
 // Handle status message - forward to ingest-data
-async function handleStatusMessage(device_id: string, data: { moth_count: number; temperature: number; status: number }) {
+async function handleStatusMessage(device_id: string, data: { moth_count: number; temperature: number; larva_density: number; status: number }) {
   const alert_level = statusCodeToAlertLevel(data.status);
   
   logSuccess('STATUS', `Processing for ${device_id}`, { 
     moths: data.moth_count, 
-    temp: data.temperature, 
+    temp: data.temperature,
+    larva: data.larva_density,
     status: data.status, 
     alertLevel: alert_level 
   });
@@ -131,6 +133,7 @@ async function handleStatusMessage(device_id: string, data: { moth_count: number
       device_id,
       moth_count: data.moth_count,
       temperature: data.temperature,
+      larva_density: data.larva_density,
       alert_level
     }
   });
