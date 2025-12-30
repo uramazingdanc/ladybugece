@@ -6,6 +6,9 @@ import { FileText, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AlertDistributionChart from './AlertDistributionChart';
 import PestIncidentsChart from './PestIncidentsChart';
+import LarvaDensityChart from './LarvaDensityChart';
+import { useMqttContext } from '@/contexts/MqttContext';
+
 interface Stats {
   totalFarms: number;
   redAlerts: number;
@@ -13,6 +16,7 @@ interface Stats {
   greenAlerts: number;
   totalReadings: number;
 }
+
 export default function GovernmentDashboard() {
   const [stats, setStats] = useState<Stats>({
     totalFarms: 0,
@@ -23,6 +27,8 @@ export default function GovernmentDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const { traps } = useMqttContext();
+
   useEffect(() => {
     fetchStats();
 
@@ -46,6 +52,15 @@ export default function GovernmentDashboard() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Also update stats when MQTT traps change
+  useEffect(() => {
+    if (Object.keys(traps).length > 0) {
+      console.log('Dashboard: MQTT traps updated, refreshing stats');
+      fetchStats();
+    }
+  }, [traps]);
+
   const fetchStats = async () => {
     try {
       // Fetch all farms and their alerts
@@ -83,6 +98,7 @@ export default function GovernmentDashboard() {
       setLoading(false);
     }
   };
+
   const generateReport = async () => {
     setGeneratingReport(true);
     try {
@@ -114,13 +130,15 @@ export default function GovernmentDashboard() {
       setGeneratingReport(false);
     }
   };
+
   if (loading) {
     return <div className="text-center py-12">Loading statistics...</div>;
   }
+
   return <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bold text-sm">  Analytics Dashboard</h2>
+          <h2 className="font-bold text-sm">Analytics Dashboard</h2>
           <p className="text-muted-foreground text-sm">Overview of pest monitoring across all farms</p>
         </div>
         <Button onClick={generateReport} disabled={generatingReport} className="bg-primary hover:bg-primary/90">
@@ -211,12 +229,23 @@ export default function GovernmentDashboard() {
         <Card className="border-0 shadow-md">
           <CardHeader>
             <CardTitle className="text-lg">Pest Incidents Over Time</CardTitle>
-            <CardDescription>Historical trend analysis</CardDescription>
+            <CardDescription>Historical trend analysis (Moth Count)</CardDescription>
           </CardHeader>
           <CardContent>
             <PestIncidentsChart />
           </CardContent>
         </Card>
       </div>
+
+      {/* Larva Density Chart - Full Width */}
+      <Card className="border-0 shadow-md">
+        <CardHeader>
+          <CardTitle className="text-lg">Predicted Larva Density Over Time</CardTitle>
+          <CardDescription>Estimated larva population for better analysis and decision-making</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LarvaDensityChart />
+        </CardContent>
+      </Card>
     </div>;
 }

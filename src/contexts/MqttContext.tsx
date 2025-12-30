@@ -4,6 +4,7 @@ import { useMqttWebSocket } from '@/hooks/useMqttWebSocket';
 interface TrapData {
   moth_count?: number;
   temperature?: number;
+  larva_density?: number;
   status?: number;
   latitude?: number;
   longitude?: number;

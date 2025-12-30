@@ -19,9 +19,9 @@ Deno.serve(async (req) => {
     console.log('Received data ingestion request');
 
     // Parse the incoming data from hardware (edge-computed)
-    const { device_id, moth_count, temperature, degree_days, alert_level } = await req.json();
+    const { device_id, moth_count, temperature, degree_days, larva_density, alert_level } = await req.json();
 
-    console.log('Data received:', { device_id, moth_count, temperature, degree_days, alert_level });
+    console.log('Data received:', { device_id, moth_count, temperature, degree_days, larva_density, alert_level });
 
     // Validate required fields
     if (!device_id || moth_count === undefined || temperature === undefined) {
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     console.log('Device validated:', device);
 
-    // Insert pest reading with optional degree_days
+    // Insert pest reading with optional degree_days and larva_density
     const readingData: any = {
       device_id,
       moth_count,
@@ -58,6 +58,10 @@ Deno.serve(async (req) => {
     
     if (degree_days !== undefined) {
       readingData.degree_days = degree_days;
+    }
+    
+    if (larva_density !== undefined) {
+      readingData.larva_density = larva_density;
     }
 
     const { data: reading, error: readingError } = await supabase
@@ -86,6 +90,7 @@ Deno.serve(async (req) => {
           alert_level: alert_level,
           last_moth_count: moth_count,
           last_temperature: temperature,
+          last_larva_density: larva_density,
           last_updated: new Date().toISOString()
         }, {
           onConflict: 'farm_id'
