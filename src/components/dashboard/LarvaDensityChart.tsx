@@ -80,8 +80,8 @@ export default function LarvaDensityChart() {
 
     console.log('Larva density readings fetched:', readings);
 
-    // Group by date and farm based on selected period
-    const grouped: { [date: string]: { [farmId: string]: { total: number; count: number } } } = {};
+    // Group by date and farm based on selected period - using total sum
+    const grouped: { [date: string]: { [farmId: string]: number } } = {};
     
     // Add database readings
     if (readings) {
@@ -103,33 +103,44 @@ export default function LarvaDensityChart() {
         
         if (farmId) {
           if (!grouped[dateKey]) grouped[dateKey] = {};
-          if (!grouped[dateKey][farmId]) grouped[dateKey][farmId] = { total: 0, count: 0 };
-          grouped[dateKey][farmId].total += reading.larva_density || 0;
-          grouped[dateKey][farmId].count += 1;
+          if (!grouped[dateKey][farmId]) grouped[dateKey][farmId] = 0;
+          grouped[dateKey][farmId] += reading.larva_density || 0;
         }
       });
     }
 
-    // Add live MQTT trap data for today
-    const today = format(new Date(), 'MMM dd, yyyy');
+    // Add live MQTT trap data - accumulate with existing data based on period
     Object.entries(traps).forEach(([deviceId, trapData]) => {
       const farmId = deviceToFarm[deviceId];
       if (farmId && trapData.larva_density !== undefined) {
-        if (!grouped[today]) grouped[today] = {};
-        if (!grouped[today][farmId]) grouped[today][farmId] = { total: 0, count: 0 };
-        grouped[today][farmId].total += trapData.larva_density;
-        grouped[today][farmId].count += 1;
+        const readingDate = new Date();
+        let dateKey: string;
+
+        if (period === 'day') {
+          dateKey = format(readingDate, 'MMM dd, yyyy');
+        } else if (period === 'week') {
+          const weekStart = startOfWeek(readingDate, { weekStartsOn: 0 });
+          dateKey = format(weekStart, 'MMM dd, yyyy');
+        } else {
+          const monthStart = startOfMonth(readingDate);
+          dateKey = format(monthStart, 'MMM yyyy');
+        }
+
+        if (!grouped[dateKey]) grouped[dateKey] = {};
+        if (!grouped[dateKey][farmId]) grouped[dateKey][farmId] = 0;
+        // Add MQTT data to the total sum
+        grouped[dateKey][farmId] += trapData.larva_density;
       }
     });
 
-    // Convert to chart format with averages and sort by date
+    // Convert to chart format with total sums and sort by date
     const chartDataResult = Object.entries(grouped)
       .map(([date, farms]) => {
         const dataPoint: ChartDataPoint = { date };
-        Object.entries(farms).forEach(([farmId, { total, count }]) => {
+        Object.entries(farms).forEach(([farmId, total]) => {
           const farm = farmsWithColors.find(f => f.id === farmId);
           if (farm) {
-            dataPoint[farm.name] = Math.round(total / count);
+            dataPoint[farm.name] = Math.round(total);
           }
         });
         return dataPoint;
