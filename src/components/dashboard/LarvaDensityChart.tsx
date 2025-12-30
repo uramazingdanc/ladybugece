@@ -80,10 +80,11 @@ export default function LarvaDensityChart() {
 
     console.log('Larva density readings fetched:', readings);
 
-    if (readings && readings.length > 0) {
-      // Group by date and farm based on selected period
-      const grouped: { [date: string]: { [farmId: string]: { total: number; count: number } } } = {};
-      
+    // Group by date and farm based on selected period
+    const grouped: { [date: string]: { [farmId: string]: { total: number; count: number } } } = {};
+    
+    // Add database readings
+    if (readings) {
       readings.forEach((reading: any) => {
         const readingDate = new Date(reading.created_at);
         let dateKey: string;
@@ -107,27 +108,36 @@ export default function LarvaDensityChart() {
           grouped[dateKey][farmId].count += 1;
         }
       });
-
-      // Convert to chart format with averages and sort by date
-      const chartData = Object.entries(grouped)
-        .map(([date, farms]) => {
-          const dataPoint: ChartDataPoint = { date };
-          Object.entries(farms).forEach(([farmId, { total, count }]) => {
-            const farm = farmsWithColors.find(f => f.id === farmId);
-            if (farm) {
-              dataPoint[farm.name] = Math.round(total / count);
-            }
-          });
-          return dataPoint;
-        })
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      console.log('Larva density chart data prepared:', chartData);
-      setChartData(chartData);
-    } else {
-      console.log('No larva density data available');
-      setChartData([]);
     }
+
+    // Add live MQTT trap data for today
+    const today = format(new Date(), 'MMM dd, yyyy');
+    Object.entries(traps).forEach(([deviceId, trapData]) => {
+      const farmId = deviceToFarm[deviceId];
+      if (farmId && trapData.larva_density !== undefined) {
+        if (!grouped[today]) grouped[today] = {};
+        if (!grouped[today][farmId]) grouped[today][farmId] = { total: 0, count: 0 };
+        grouped[today][farmId].total += trapData.larva_density;
+        grouped[today][farmId].count += 1;
+      }
+    });
+
+    // Convert to chart format with averages and sort by date
+    const chartDataResult = Object.entries(grouped)
+      .map(([date, farms]) => {
+        const dataPoint: ChartDataPoint = { date };
+        Object.entries(farms).forEach(([farmId, { total, count }]) => {
+          const farm = farmsWithColors.find(f => f.id === farmId);
+          if (farm) {
+            dataPoint[farm.name] = Math.round(total / count);
+          }
+        });
+        return dataPoint;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    console.log('Larva density chart data prepared:', chartDataResult);
+    setChartData(chartDataResult);
   };
 
   if (chartData.length === 0) {
