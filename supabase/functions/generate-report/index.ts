@@ -16,29 +16,30 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Generating analytics report...');
+    console.log('Generating analytics report from current dashboard data...');
 
-    // Get the days parameter (default to 7 days)
-    const url = new URL(req.url);
-    const days = parseInt(url.searchParams.get('days') || '7');
+    // Fetch current farm status from ipm_alerts (what the dashboard shows)
+    const { data: alerts, error: alertsError } = await supabase
+      .from('ipm_alerts')
+      .select(`
+        farm_id,
+        alert_level,
+        last_moth_count,
+        last_temperature,
+        last_larva_density,
+        last_updated,
+        farms!inner (
+          farm_name,
+          latitude,
+          longitude
+        )
+      `)
+      .order('last_updated', { ascending: false });
 
-    console.log('Generating report for last', days, 'days');
-
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-
-    // Fetch pest readings with farm data using RPC for historical data
-    const { data: readings, error: readingsError } = await supabase.rpc('get_readings_with_farms', {
-      start_date: startDate.toISOString(),
-      end_date: endDate.toISOString()
-    });
-
-    if (readingsError) {
-      console.error('Error fetching readings:', readingsError);
+    if (alertsError) {
+      console.error('Error fetching alerts:', alertsError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch readings data' }),
+        JSON.stringify({ error: 'Failed to fetch dashboard data' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -60,22 +61,23 @@ Deno.serve(async (req) => {
     // Generate CSV content - simple data table format matching the screenshot
     let csvContent = '';
 
-    // Header row matching the exact format: Date, Time, Farm_ID, longitude, latitude, Moth count, Temperature, larva density, Farm status
+    // Header row matching the exact format from dashboard
     csvContent += 'Date,Time,Farm_ID,longitude,latitude,Moth count,Temperature,larva density,Farm status\n';
 
-    if (readings && readings.length > 0) {
-      readings.forEach((reading: any) => {
-        const farmName = reading.farm_name || 'Unknown';
-        const longitude = reading.longitude || '';
-        const latitude = reading.latitude || '';
-        const alertLevel = reading.alert_level || 'Green';
+    if (alerts && alerts.length > 0) {
+      alerts.forEach((alert: any) => {
+        const farm = alert.farms;
+        const farmName = farm?.farm_name || 'Unknown';
+        const longitude = farm?.longitude || '';
+        const latitude = farm?.latitude || '';
+        const alertLevel = alert.alert_level || 'Green';
         const farmStatus = getStatusText(alertLevel);
-        const larvaDensity = reading.larva_density !== null && reading.larva_density !== undefined 
-          ? reading.larva_density 
+        const larvaDensity = alert.last_larva_density !== null && alert.last_larva_density !== undefined 
+          ? alert.last_larva_density 
           : '';
         
         // Split timestamp into date and time
-        const dateObj = new Date(reading.created_at);
+        const dateObj = new Date(alert.last_updated);
         const date = dateObj.toLocaleDateString('en-US', {
           year: 'numeric',
           month: '2-digit',
@@ -88,12 +90,12 @@ Deno.serve(async (req) => {
           hour12: false
         });
         
-        csvContent += `${date},${time},${farmName},${longitude},${latitude},${reading.moth_count},${reading.temperature},${larvaDensity},${farmStatus}\n`;
+        csvContent += `${date},${time},${farmName},${longitude},${latitude},${alert.last_moth_count},${alert.last_temperature},${larvaDensity},${farmStatus}\n`;
       });
     }
 
     console.log('CSV analytics report generated successfully');
-    console.log(`Report contains ${readings?.length || 0} pest readings`);
+    console.log(`Report contains ${alerts?.length || 0} farm records`);
 
     return new Response(
       csvContent,
@@ -102,7 +104,7 @@ Deno.serve(async (req) => {
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="ladybug-analytics-report-${days}days.csv"`
+          'Content-Disposition': `attachment; filename="ladybug-analytics-report.csv"`
         } 
       }
     );
